@@ -8,6 +8,7 @@
 
 #include "dsd.h"
 #include "dmr_const.h"
+#include "db_logger.h"
 
 //A subroutine for processing each TDMA frame individually to allow for
 //processing voice and/or data on both BS slots (channels) simultaneously
@@ -260,6 +261,9 @@ void dmrBS (dsd_opts * opts, dsd_state * state)
   {
     if (internalslot == 0) vc1 = 1;
     if (internalslot == 1) vc2 = 1;
+    
+    /* Start new superframe when voice sync detected */
+    db_start_superframe(internalslot, state->color_code, "BS_VOICE");
   }
 
   //check for sync pattern here after collected the rest of the payload, decide what to do with it
@@ -472,6 +476,25 @@ void dmrBS (dsd_opts * opts, dsd_state * state)
       memcpy(state->s_r4[0], state->s_r, sizeof(state->s_r));
       memcpy(state->s_r4u[0], state->s_ru, sizeof(state->s_ru));
     }
+    
+    // Log AMBE frame 1 to SQLite3
+    {
+      uint64_t ambe_hex = 0;
+      int bit_pos = 0;
+      int log_i, log_j;
+      for (log_i = 0; log_i < 4; log_i++)
+      {
+        for (log_j = 0; log_j < 24; log_j++)
+        {
+          if (bit_pos < 64)
+          {
+            ambe_hex = (ambe_hex << 1) | (ambe_fr[log_i][log_j] & 1);
+            bit_pos++;
+          }
+        }
+      }
+      db_log_ambe(ambe_hex);
+    }
 
 
     processMbeFrame (opts, state, NULL, ambe_fr2, NULL);
@@ -488,6 +511,25 @@ void dmrBS (dsd_opts * opts, dsd_state * state)
       memcpy(state->s_r4[1], state->s_r, sizeof(state->s_r));
       memcpy(state->s_r4u[1], state->s_ru, sizeof(state->s_ru));
     }
+    
+    // Log AMBE frame 2 to SQLite3
+    {
+      uint64_t ambe_hex = 0;
+      int bit_pos = 0;
+      int log_i, log_j;
+      for (log_i = 0; log_i < 4; log_i++)
+      {
+        for (log_j = 0; log_j < 24; log_j++)
+        {
+          if (bit_pos < 64)
+          {
+            ambe_hex = (ambe_hex << 1) | (ambe_fr2[log_i][log_j] & 1);
+            bit_pos++;
+          }
+        }
+      }
+      db_log_ambe(ambe_hex);
+    }
 
     processMbeFrame (opts, state, NULL, ambe_fr3, NULL);
     if(internalslot == 0)
@@ -502,6 +544,25 @@ void dmrBS (dsd_opts * opts, dsd_state * state)
       memcpy(state->f_r4[2], state->audio_out_temp_bufR, sizeof(state->audio_out_temp_bufR));
       memcpy(state->s_r4[2], state->s_r, sizeof(state->s_r));
       memcpy(state->s_r4u[2], state->s_ru, sizeof(state->s_ru));
+    }
+    
+    // Log AMBE frame 3 to SQLite3
+    {
+      uint64_t ambe_hex = 0;
+      int bit_pos = 0;
+      int log_i, log_j;
+      for (log_i = 0; log_i < 4; log_i++)
+      {
+        for (log_j = 0; log_j < 24; log_j++)
+        {
+          if (bit_pos < 64)
+          {
+            ambe_hex = (ambe_hex << 1) | (ambe_fr3[log_i][log_j] & 1);
+            bit_pos++;
+          }
+        }
+      }
+      db_log_ambe(ambe_hex);
     }
 
 
@@ -540,8 +601,16 @@ void dmrBS (dsd_opts * opts, dsd_state * state)
       dmr_late_entry_mi_fragment (opts, state, vc%7, m1, m2, m3);
 
     //increment the vc counters
-    if (internalslot == 0) vc1++;
-    if (internalslot == 1) vc2++;
+    if (internalslot == 0) {
+      vc1++;
+      /* End superframe after vc6 */
+      if (vc1 == 7) db_end_superframe();
+    }
+    if (internalslot == 1) {
+      vc2++;
+      /* End superframe after vc6 */
+      if (vc2 == 7) db_end_superframe();
+    }
 
     //update cc amd vc sync time for trunking purposes (particularly Con+)
     if (opts->p25_is_tuned == 1)
@@ -608,6 +677,9 @@ void dmrBS (dsd_opts * opts, dsd_state * state)
  } // while loop
 
  END:
+ /* End any open superframe */
+ db_end_superframe();
+ 
  state->dmr_stereo = 0;
  state->errs = 0;
  state->errs2 = 0;
@@ -798,6 +870,9 @@ void dmrBSBootstrap (dsd_opts * opts, dsd_state * state)
     goto END;
   }
 
+  /* Start new superframe when voice sync detected */
+  db_start_superframe(internalslot, state->color_code, "BS_VOICE");
+
   //Continue Second AMBE Frame, 18 after Sync or EmbeddedSignalling
   for(i = 0; i < 18; i++)
   {
@@ -906,6 +981,25 @@ void dmrBSBootstrap (dsd_opts * opts, dsd_state * state)
     memcpy(state->s_r4[0], state->s_r, sizeof(state->s_r));
     memcpy(state->s_r4u[0], state->s_ru, sizeof(state->s_ru));
   }
+  
+  // Log AMBE frame 1 to SQLite3
+  {
+    uint64_t ambe_hex = 0;
+    int bit_pos = 0;
+    int log_i, log_j;
+    for (log_i = 0; log_i < 4; log_i++)
+    {
+      for (log_j = 0; log_j < 24; log_j++)
+      {
+        if (bit_pos < 64)
+        {
+          ambe_hex = (ambe_hex << 1) | (ambe_fr[log_i][log_j] & 1);
+          bit_pos++;
+        }
+      }
+    }
+    db_log_ambe(ambe_hex);
+  }
 
 
   processMbeFrame (opts, state, NULL, ambe_fr2, NULL);
@@ -922,6 +1016,25 @@ void dmrBSBootstrap (dsd_opts * opts, dsd_state * state)
     memcpy(state->s_r4[1], state->s_r, sizeof(state->s_r));
     memcpy(state->s_r4u[1], state->s_ru, sizeof(state->s_ru));
   }
+  
+  // Log AMBE frame 2 to SQLite3
+  {
+    uint64_t ambe_hex = 0;
+    int bit_pos = 0;
+    int log_i, log_j;
+    for (log_i = 0; log_i < 4; log_i++)
+    {
+      for (log_j = 0; log_j < 24; log_j++)
+      {
+        if (bit_pos < 64)
+        {
+          ambe_hex = (ambe_hex << 1) | (ambe_fr2[log_i][log_j] & 1);
+          bit_pos++;
+        }
+      }
+    }
+    db_log_ambe(ambe_hex);
+  }
 
   processMbeFrame (opts, state, NULL, ambe_fr3, NULL);
   if(internalslot == 0)
@@ -936,6 +1049,25 @@ void dmrBSBootstrap (dsd_opts * opts, dsd_state * state)
     memcpy(state->f_r4[2], state->audio_out_temp_bufR, sizeof(state->audio_out_temp_bufR));
     memcpy(state->s_r4[2], state->s_r, sizeof(state->s_r));
     memcpy(state->s_r4u[2], state->s_ru, sizeof(state->s_ru));
+  }
+  
+  // Log AMBE frame 3 to SQLite3
+  {
+    uint64_t ambe_hex = 0;
+    int bit_pos = 0;
+    int log_i, log_j;
+    for (log_i = 0; log_i < 4; log_i++)
+    {
+      for (log_j = 0; log_j < 24; log_j++)
+      {
+        if (bit_pos < 64)
+        {
+          ambe_hex = (ambe_hex << 1) | (ambe_fr3[log_i][log_j] & 1);
+          bit_pos++;
+        }
+      }
+    }
+    db_log_ambe(ambe_hex);
   }
 
   //collect the mi fragment
@@ -956,6 +1088,9 @@ void dmrBSBootstrap (dsd_opts * opts, dsd_state * state)
 
   dmrBS (opts, state); //bootstrap into full TDMA frame for BS mode
   END:
+  /* End any open superframe */
+  db_end_superframe();
+  
   //if we have a tact err, then produce sync pattern/err message
   if (tact_okay != 1 || sync_okay != 1)
   {

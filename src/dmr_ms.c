@@ -8,6 +8,7 @@
 
 #include "dsd.h"
 #include "dmr_const.h"
+#include "db_logger.h"
 
 //A subroutine for processing MS voice
 void dmrMS (dsd_opts * opts, dsd_state * state)
@@ -61,6 +62,9 @@ void dmrMS (dsd_opts * opts, dsd_state * state)
 
   //Hardset variables for MS/Mono
   state->currentslot = 0; //0
+
+  /* Start a new superframe for this complete MS voice transmission */
+  db_start_superframe(state->currentslot, state->color_code, "MS_VOICE");
 
   //Note: Manual dibit inversion required here since I didn't seperate inverted return from normal return in framesync,
   //so getDibit doesn't know to invert it before it gets here
@@ -244,6 +248,25 @@ void dmrMS (dsd_opts * opts, dsd_state * state)
   memcpy (m2, ambe_fr2, sizeof(m2));
   memcpy (m3, ambe_fr3, sizeof(m3));
 
+  /* Log AMBE frames to SQLite3 database */
+  uint64_t ambe_data1 = 0;
+  uint64_t ambe_data2 = 0;
+  uint64_t ambe_data3 = 0;
+  
+  /* Convert AMBE frame to 64-bit value for storage */
+  for (i = 0; i < 4; i++) {
+      for (int k = 0; k < 24; k++) { /* Use all 24 bits */
+          ambe_data1 = (ambe_data1 << 1) | (ambe_fr[i][k] & 0x01);
+          ambe_data2 = (ambe_data2 << 1) | (ambe_fr2[i][k] & 0x01);
+          ambe_data3 = (ambe_data3 << 1) | (ambe_fr3[i][k] & 0x01);
+      }
+  }
+  
+  /* Log the AMBE frames - they will be associated with current MI context */
+  db_log_ambe(ambe_data1);
+  db_log_ambe(ambe_data2);
+  db_log_ambe(ambe_data3);
+
   processMbeFrame (opts, state, NULL, ambe_fr, NULL);
     memcpy(state->f_l4[0], state->audio_out_temp_buf, sizeof(state->audio_out_temp_buf));
     memcpy(state->s_l4[0], state->s_l, sizeof(state->s_l));
@@ -320,6 +343,9 @@ void dmrMS (dsd_opts * opts, dsd_state * state)
 
  } // end loop
 
+ /* End the superframe after processing all 6 bursts (18 AMBE frames) */
+ db_end_superframe();
+
  END:
  //get first half payload dibits and store them in the payload for the next repitition
  skipDibit (opts, state, 144); //should we have two of these?
@@ -379,6 +405,9 @@ void dmrMSBootstrap (dsd_opts * opts, dsd_state * state)
 
   state->dmrburstL = 16;
   state->currentslot = 0; //force to slot 0
+
+  /* Start a new superframe for this MS voice burst */
+  db_start_superframe(state->currentslot, state->color_code, "MS_VOICE");
 
   dibit_p = state->dmr_payload_p - 90;
 

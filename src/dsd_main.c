@@ -25,6 +25,7 @@
  #include "dmr_const.h"
  #include "provoice_const.h"
  #include "git_ver.h"
+ #include "db_logger.h"
  
  #include <signal.h>
  
@@ -1780,6 +1781,10 @@
    fprintf (stderr,"Total header errors: %i\n", state->debug_header_errors);
    fprintf (stderr,"Total irrecoverable header errors: %i\n", state->debug_header_critical_errors);
    fprintf (stderr,"Exiting.\n");
+   
+   /* Close SQLite database on exit */
+   db_close();
+   
    exit (0);
  }
  

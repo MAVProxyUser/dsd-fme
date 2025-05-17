@@ -9,6 +9,7 @@
  *-----------------------------------------------------------------------------*/
 
 #include "dsd.h"
+#include "db_logger.h"
 
 void dmr_pi (dsd_opts * opts, dsd_state * state, uint8_t PI_BYTE[], uint32_t CRCCorrect, uint32_t IrrecoverableErrors)
 {
@@ -49,6 +50,12 @@ void dmr_pi (dsd_opts * opts, dsd_state * state, uint8_t PI_BYTE[], uint32_t CRC
       fprintf (stderr, "\n Slot %d", state->currentslot+1);
       fprintf (stderr, " DMR PI H- ALG ID: %02X; KEY ID: %02X; MI(40): %02X%02X%02X%02X%02X;", 
       PI_BYTE[0], PI_BYTE[2], PI_BYTE[3], PI_BYTE[4], PI_BYTE[5], PI_BYTE[6], PI_BYTE[7]);
+      
+      // Log Header MI to SQLite3
+      if (state->currentslot == 0)
+        db_set_header_mi(state->payload_mi, state->currentslot, state->payload_algid);
+      else
+        db_set_header_mi(state->payload_miR, state->currentslot, state->payload_algidR);
 
       //PI_BYTE[9] is a checksum of the other bytes combined
       uint8_t checksum = 0;
@@ -96,6 +103,10 @@ void dmr_pi (dsd_opts * opts, dsd_state * state, uint8_t PI_BYTE[], uint32_t CRC
         state->payload_algid = PI_BYTE[0];
         state->payload_keyid = PI_BYTE[2];
         state->payload_mi    = ((unsigned long long int)PI_BYTE[3] << 24ULL) | ((unsigned long long int)PI_BYTE[4] << 16ULL) | ((unsigned long long int)PI_BYTE[5] << 8ULL) | ((unsigned long long int)PI_BYTE[6] << 0ULL);
+        
+        // Log DMRA Header MI to SQLite3
+        db_set_header_mi(state->payload_mi, state->currentslot, state->payload_algid);
+        
         if (state->payload_algid < 0x26)
         {
           fprintf (stderr, "%s ", KYEL);
@@ -163,6 +174,10 @@ void dmr_pi (dsd_opts * opts, dsd_state * state, uint8_t PI_BYTE[], uint32_t CRC
         state->payload_algidR = PI_BYTE[0];
         state->payload_keyidR = PI_BYTE[2];
         state->payload_miR    = ((unsigned long long int)PI_BYTE[3] << 24ULL) | ((unsigned long long int)PI_BYTE[4] << 16ULL) | ((unsigned long long int)PI_BYTE[5] << 8ULL) | ((unsigned long long int)PI_BYTE[6] << 0ULL);
+        
+        // Log DMRA Header MI to SQLite3
+        db_set_header_mi(state->payload_miR, state->currentslot, state->payload_algidR);
+        
         if (state->payload_algidR < 0x26)
         {
           fprintf (stderr, "%s ", KYEL);
@@ -260,6 +275,9 @@ void LFSR(dsd_state * state)
     fprintf (stderr, " RC4;");
     fprintf (stderr, "%s", KNRM);
     state->payload_mi = lfsr;
+    
+    // Log Control MI to SQLite3
+    db_set_control_mi(lfsr);
   }
 
   if (state->currentslot == 1)
@@ -272,6 +290,9 @@ void LFSR(dsd_state * state)
     fprintf (stderr, " RC4;");
     fprintf (stderr, "%s", KNRM);
     state->payload_miR = lfsr;
+    
+    // Log Control MI to SQLite3
+    db_set_control_mi(lfsr);
   }
 }
 
@@ -306,6 +327,9 @@ void LFSR64(dsd_state * state)
       state->payload_mi = lfsr & 0xFFFFFFFF; //truncate for next repitition and le verification
       state->payload_miP = lfsr;
       state->DMRvcL = 0;
+      
+      // Log Control MI to SQLite3 (using truncated 32-bit value)
+      db_set_control_mi(state->payload_mi);
     }
 
     if (state->currentslot == 1)
@@ -319,6 +343,9 @@ void LFSR64(dsd_state * state)
       state->payload_miR = lfsr & 0xFFFFFFFF; //truncate for next repitition and le verification
       state->payload_miN = lfsr;
       state->DMRvcR = 0;
+      
+      // Log Control MI to SQLite3 (using truncated 32-bit value)
+      db_set_control_mi(state->payload_miR);
     }
 
   }
@@ -392,6 +419,9 @@ void LFSR128d(dsd_state * state)
 
     state->payload_mi = next_mi;
     state->DMRvcL = 0;
+    
+    // Log Control MI to SQLite3
+    db_set_control_mi(next_mi);
 
   }
 
@@ -411,6 +441,9 @@ void LFSR128d(dsd_state * state)
 
     state->payload_miR = next_mi;
     state->DMRvcR = 0;
+    
+    // Log Control MI to SQLite3
+    db_set_control_mi(next_mi);
 
   }
 
