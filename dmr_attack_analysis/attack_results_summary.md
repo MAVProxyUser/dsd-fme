@@ -2,10 +2,13 @@
 
 ## Data Analyzed
 - **Total Databases**: 11 capture files
-- **Total Frames**: 33,018
-  - Encrypted: 32,163 (97.4%)
-  - Unencrypted: 855 (2.6%)
+- **Total Frames**: 37,293
+  - Encrypted: 36,438 (97.7%)
+  - Unencrypted: 855 (2.3%)
 - **Collection Period**: 2025-05-17 00:50 - 03:37
+- **Total Correlations**: 1,468
+- **Unique C-MI Values**: 545
+- **Unique H-MI Values**: 1 (0x6C8AB637)
 
 ## Attack Results
 

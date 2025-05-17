@@ -34,6 +34,13 @@ However, **actual captured transmissions show variations**:
 - 6,120/6,120 spot checks validated
 - Full audio recovery is feasible
 
+### 5. Dataset Statistics
+- **Total correlations**: 1,468
+- **Total AMBE frames**: 37,293
+- **Unique C-MI values**: 545
+- **Unique H-MI values**: 1 (0x6C8AB637)
+- **Database files**: 11
+
 ## Attack Methodology
 
 1. **Capture encrypted DMR transmissions**
