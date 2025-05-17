@@ -60,6 +60,8 @@ Based on our analysis:
 - **Minimum data**: ~1,000 correlations (H-MI/C-MI pairs)
 - **Typical capture time**: 3-4 minutes of active transmission
 - **Frame capture rate**: ~0.85 correlations/second during active transmission
+- **Capture calculation**: 1,000 correlations ÷ 0.85/sec = ~20 minutes of radio activity
+- **Actual capture**: 3-4 minutes due to intermittent PTT usage
 - **Pattern convergence**: LFSR pattern stabilizes after ~200 correlations
 - **Multiple radios**: Multiple radio IDs can be captured simultaneously without impact on analysis
 
@@ -237,9 +239,10 @@ sqlite3 dmr_capture_20250517_013614.db ".tables"
 ## Hardware Setup
 
 Testing was conducted on:
-- Jetson AGX Xavier (ARM64) with CUDA 11.4
+- NVIDIA Jetson AGX Xavier Developer Kit (ARM64) with CUDA 11.4
 - RTL-SDR devices for signal reception
 - Two test radios (IDs 1234 and 6969) with Call End Beep enabled
+- Ubuntu 20.04 (JetPack 5.1.2)
 
 ## GPU Acceleration
 
