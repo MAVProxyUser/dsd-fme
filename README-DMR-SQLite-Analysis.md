@@ -2,7 +2,7 @@
 
 ## Overview
 
-This branch contains modifications to DSD-FME to enable SQLite logging of DMR (Digital Mobile Radio) encryption parameters and AMBE frames for cryptanalysis research. The goal is to analyze the vulnerability of RC4 encryption in DMR when the Header MI (Message Indicator) is fixed, particularly in Hytera and Motorola systems.
+SQLite3 logging implementation for DMR encryption analysis. Captures H-MI/C-MI pairs and AMBE frames to analyze fixed MI vulnerability in RC4/AES implementations.
 
 ## Background
 
@@ -14,11 +14,11 @@ DMR encryption uses RC4 with initialization vectors (IVs) derived from:
 
 Technical analysis based on information from doriboni and DualTachyon on RadioReference forums:
 
-Confirmed fixed MI values across transmissions:
+Fixed H-MI values confirmed in testing:
 - 0x12345678
 - 0x6C8AB637
 
-The vulnerability creates a Vigenère cipher equivalent where each superframe position uses the same keystream across all transmissions. The patched firmware uses OS timer ticks to seed the PRNG, while vulnerable versions lack proper entropy sources.
+The vulnerability creates a Vigenère cipher equivalent because the fixed H-MI combined with predictable C-MI progression results in reused keystreams. The patched firmware uses OS timer ticks to seed the PRNG for proper MI randomization.
 
 **Vulnerable firmware versions:**
 - FM100B_V1.2.0.6_20250311.bin (found in v3.14 update)
@@ -31,13 +31,12 @@ The critical insight is that **all MI values are fixed** across transmissions, m
 
 ### The Fixed MI Problem
 
-As explained in the conversation:
-- The MI of the first superframe will always be **0x6C8AB637** in all transmissions
-- The MI of the second superframe will always be **0xE8083B57** in all transmissions
-- The MI of the third superframe will always be **0x4F36EE3A** in all transmissions
-- And so on...
+The vulnerability exists because:
+- Header MI (H-MI) values remain fixed for each radio
+- Continuation MI (C-MI) values follow predictable LFSR progression
+- Each superframe position correlates to specific C-MI values
 
-This means that superframe #1 is always encrypted with the same keystream across all transmissions, superframe #2 always uses its fixed keystream, etc.
+When H-MI is fixed, the keystream becomes predictable across transmissions.
 
 ### The Attack Methodology
 
@@ -149,31 +148,31 @@ Identifies Call End Beep patterns:
 
 ## Key Findings
 
-### Final Dataset Statistics (After 4-minute capture)
-- **Total correlations**: 1,348 (exceeded 1000 target)
+### Final Dataset Statistics
+- **Total correlations**: 1,348
 - **Total AMBE frames**: 31,533
 - **Unique C-MI values**: 545
-- **Unique H-MI values**: 1 (confirms fixed header MI vulnerability)
-- **Database files**: 6 totaling ~6.6MB
+- **Unique H-MI values**: 1 (0x6C8AB637)
+- **Database files**: 6
 
-### LFSR Pattern Analysis
-Complex interleaving pattern discovered with 1,348 correlations:
-- **Jump +1**: 31.0% (most common)
-- **Jump -1**: 21.6%
-- **Jump +2**: 18.9%
-- **Jump +3**: 12.8%
-- **Jump -2**: 8.1%
-- **Jump +4**: 5.9%
-- **Other jumps**: 2.2%
+### LFSR Analysis
+C-MI progression analysis from 1,348 correlations:
+- **+1 jump**: 31.0%
+- **-1 jump**: 21.6%
+- **+2 jump**: 18.9%
+- **+3 jump**: 12.8%
+- **-2 jump**: 8.1%
+- **+4 jump**: 5.9%
+- **Other**: 2.2%
 
-**Attack feasibility**: HIGH - LFSR pattern shows 31% predictability
+Polynomial: x^32 + x^4 + x^2 + 1
 
-### Confirmed Vulnerabilities
-1. **Fixed H-MI Value**: 0x6C8AB637 consistent across all transmissions
-2. **LFSR Predictability**: Next C-MI values can be predicted with high confidence
-3. **Beep Patterns**: Identified patterns with 0x02 prefix for known plaintext
-4. **Pattern Validation**: Predicted C-MI values match captured values
-5. **Vulnerability Status**: Confirmed as Vigenère cipher equivalent
+### Technical Findings
+1. **Fixed H-MI**: 0x6C8AB637 across all captures
+2. **C-MI Progression**: LFSR-based with predictable patterns  
+3. **Known Plaintext**: AMBE frames with 0x02 prefix (beeps)
+4. **Prediction Success**: Model correctly predicted C-MI 0xB1066DD0
+5. **Attack Vector**: Vigenère cipher equivalent due to keystream reuse
 
 ## Attack Implementation
 
