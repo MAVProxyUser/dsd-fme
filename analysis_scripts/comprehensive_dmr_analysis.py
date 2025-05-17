@@ -19,7 +19,7 @@ from scipy.spatial.distance import hamming
 from collections import defaultdict, Counter
 
 # Cryptographic imports
-from Cryptodome.Cipher import ARC4
+from Crypto.Cipher import ARC4
 
 # Try to import CuPy for GPU acceleration
 try:
@@ -285,14 +285,14 @@ class DMRAnalyzer:
         # Different IV constructions to try
         iv_variants = [
             # Standard DMR RC4
-            h_mi.to_bytes(4, 'big') + c_mi.to_bytes(4, 'big'),
-            h_mi.to_bytes(4, 'little') + c_mi.to_bytes(4, 'little'),
-            c_mi.to_bytes(4, 'big'),
-            (h_mi ^ c_mi).to_bytes(4, 'big'),
+            int(h_mi).to_bytes(4, 'big') + int(c_mi).to_bytes(4, 'big'),
+            int(h_mi).to_bytes(4, 'little') + int(c_mi).to_bytes(4, 'little'),
+            int(c_mi).to_bytes(4, 'big'),
+            int(h_mi ^ c_mi).to_bytes(4, 'big'),
             # Hytera variants
-            h_mi.to_bytes(4, 'big') + c_mi.to_bytes(4, 'big') + b'\x00',
+            int(h_mi).to_bytes(4, 'big') + int(c_mi).to_bytes(4, 'big') + b'\x00',
             # Motorola variants  
-            c_mi.to_bytes(4, 'big') + h_mi.to_bytes(4, 'big'),
+            int(c_mi).to_bytes(4, 'big') + int(h_mi).to_bytes(4, 'big'),
         ]
         
         print(f"\nTrying decryption for C-MI 0x{c_mi:08X}, H-MI 0x{h_mi:08X}")
