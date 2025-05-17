@@ -94,7 +94,22 @@ void db_log_ambe(uint64_t ambe) {
         snprintf(tbl, sizeof(tbl), "C_%08X_S%d", current_c_mi, current_slot);
         current_mi = current_c_mi;
     } else {
-        return; /* No valid context */
+        /* For unencrypted frames, use a default table */
+        snprintf(tbl, sizeof(tbl), "U_00000000_S%d", current_slot);
+        current_mi = 0;
+        
+        /* Create the unencrypted table if it doesn't exist */
+        char *sql = sqlite3_mprintf(
+            "CREATE TABLE IF NOT EXISTS '%q' ("
+            " id INTEGER PRIMARY KEY,"
+            " ambe_hex TEXT,"
+            " timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,"
+            " mi_full INTEGER,"
+            " algid INTEGER,"
+            " slot INTEGER"
+            ");", tbl);
+        sqlite3_exec(db, sql, NULL, NULL, NULL);
+        sqlite3_free(sql);
     }
     
     char ambe_hex[17];
@@ -181,23 +196,20 @@ void db_start_superframe(int slot, int color_code, const char *sync_type) {
     frame_count_in_superframe = 0;
     
     /* Update AMBE tables to include superframe_id column */
+    char tbl[64];
     if (current_context == 1 && current_h_mi != 0) {
-        char tbl[64];
         snprintf(tbl, sizeof(tbl), "H_%08X_S%d", (uint32_t)(current_h_mi & 0xFFFFFFFF), current_slot);
-        sql = sqlite3_mprintf(
-            "ALTER TABLE '%q' ADD COLUMN superframe_id INTEGER DEFAULT NULL;",
-            tbl);
-        sqlite3_exec(db, sql, NULL, NULL, NULL);
-        sqlite3_free(sql);
     } else if (current_context == 2 && current_c_mi != 0) {
-        char tbl[64];
         snprintf(tbl, sizeof(tbl), "C_%08X_S%d", current_c_mi, current_slot);
-        sql = sqlite3_mprintf(
-            "ALTER TABLE '%q' ADD COLUMN superframe_id INTEGER DEFAULT NULL;",
-            tbl);
-        sqlite3_exec(db, sql, NULL, NULL, NULL);
-        sqlite3_free(sql);
+    } else {
+        snprintf(tbl, sizeof(tbl), "U_00000000_S%d", current_slot);
     }
+    
+    sql = sqlite3_mprintf(
+        "ALTER TABLE '%q' ADD COLUMN superframe_id INTEGER DEFAULT NULL;",
+        tbl);
+    sqlite3_exec(db, sql, NULL, NULL, NULL);
+    sqlite3_free(sql);
 }
 
 void db_end_superframe(void) {

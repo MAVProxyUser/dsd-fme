@@ -1,0 +1,353 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 4e8311c..ba05167 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -57,9 +57,10 @@ find_package(RTLSDR)
+ find_package(Curses REQUIRED)
+ find_package(PulseAudio REQUIRED)
+ find_package(CODEC2)
++find_package (SQLite3 REQUIRED)
+ 
+-include_directories(SYSTEM ${LIBSNDFILE_INCLUDE_DIR} ${MBE_INCLUDE_DIR} ${ITPP_INCLUDE_DIR} ${PULSEAUDIO_INCLUDE_DIRS} ${CURSES_INCLUDE_DIRS})
+-set(LIBS ${MBE_LIBRARY} ${LIBSNDFILE_LIBRARY} ${ITPP_LIBRARY} ${PULSEAUDIO_SIMPLE_LIBRARY} ${PULSEAUDIO_LIBRARY} ${CURSES_LIBRARIES})
++include_directories(SYSTEM ${LIBSNDFILE_INCLUDE_DIR} ${MBE_INCLUDE_DIR} ${ITPP_INCLUDE_DIR} ${PULSEAUDIO_INCLUDE_DIRS} ${CURSES_INCLUDE_DIRS} ${SQLite3_INCLUDE_DIRS})
++set(LIBS ${MBE_LIBRARY} ${LIBSNDFILE_LIBRARY} ${ITPP_LIBRARY} ${PULSEAUDIO_SIMPLE_LIBRARY} ${PULSEAUDIO_LIBRARY} ${CURSES_LIBRARIES} ${SQLite3_LIBRARIES})
+ 
+ if(RTLSDR_FOUND)
+     find_package(Threads)
+diff --git a/src/dmr_bs.c b/src/dmr_bs.c
+index cd26fe1..91bbef5 100644
+--- a/src/dmr_bs.c
++++ b/src/dmr_bs.c
+@@ -8,6 +8,7 @@
+ 
+ #include "dsd.h"
+ #include "dmr_const.h"
++#include "db_logger.h"
+ 
+ //A subroutine for processing each TDMA frame individually to allow for
+ //processing voice and/or data on both BS slots (channels) simultaneously
+@@ -472,6 +473,25 @@ void dmrBS (dsd_opts * opts, dsd_state * state)
+       memcpy(state->s_r4[0], state->s_r, sizeof(state->s_r));
+       memcpy(state->s_r4u[0], state->s_ru, sizeof(state->s_ru));
+     }
++    
++    // Log AMBE frame 1 to SQLite3
++    {
++      uint64_t ambe_hex = 0;
++      int bit_pos = 0;
++      int log_i, log_j;
++      for (log_i = 0; log_i < 4; log_i++)
++      {
++        for (log_j = 0; log_j < 24; log_j++)
++        {
++          if (bit_pos < 64)
++          {
++            ambe_hex = (ambe_hex << 1) | (ambe_fr[log_i][log_j] & 1);
++            bit_pos++;
++          }
++        }
++      }
++      db_log_ambe(ambe_hex);
++    }
+ 
+ 
+     processMbeFrame (opts, state, NULL, ambe_fr2, NULL);
+@@ -488,6 +508,25 @@ void dmrBS (dsd_opts * opts, dsd_state * state)
+       memcpy(state->s_r4[1], state->s_r, sizeof(state->s_r));
+       memcpy(state->s_r4u[1], state->s_ru, sizeof(state->s_ru));
+     }
++    
++    // Log AMBE frame 2 to SQLite3
++    {
++      uint64_t ambe_hex = 0;
++      int bit_pos = 0;
++      int log_i, log_j;
++      for (log_i = 0; log_i < 4; log_i++)
++      {
++        for (log_j = 0; log_j < 24; log_j++)
++        {
++          if (bit_pos < 64)
++          {
++            ambe_hex = (ambe_hex << 1) | (ambe_fr2[log_i][log_j] & 1);
++            bit_pos++;
++          }
++        }
++      }
++      db_log_ambe(ambe_hex);
++    }
+ 
+     processMbeFrame (opts, state, NULL, ambe_fr3, NULL);
+     if(internalslot == 0)
+@@ -503,6 +542,25 @@ void dmrBS (dsd_opts * opts, dsd_state * state)
+       memcpy(state->s_r4[2], state->s_r, sizeof(state->s_r));
+       memcpy(state->s_r4u[2], state->s_ru, sizeof(state->s_ru));
+     }
++    
++    // Log AMBE frame 3 to SQLite3
++    {
++      uint64_t ambe_hex = 0;
++      int bit_pos = 0;
++      int log_i, log_j;
++      for (log_i = 0; log_i < 4; log_i++)
++      {
++        for (log_j = 0; log_j < 24; log_j++)
++        {
++          if (bit_pos < 64)
++          {
++            ambe_hex = (ambe_hex << 1) | (ambe_fr3[log_i][log_j] & 1);
++            bit_pos++;
++          }
++        }
++      }
++      db_log_ambe(ambe_hex);
++    }
+ 
+ 
+     //'DSP' output to file -- run before sbrc
+@@ -906,6 +964,25 @@ void dmrBSBootstrap (dsd_opts * opts, dsd_state * state)
+     memcpy(state->s_r4[0], state->s_r, sizeof(state->s_r));
+     memcpy(state->s_r4u[0], state->s_ru, sizeof(state->s_ru));
+   }
++  
++  // Log AMBE frame 1 to SQLite3
++  {
++    uint64_t ambe_hex = 0;
++    int bit_pos = 0;
++    int log_i, log_j;
++    for (log_i = 0; log_i < 4; log_i++)
++    {
++      for (log_j = 0; log_j < 24; log_j++)
++      {
++        if (bit_pos < 64)
++        {
++          ambe_hex = (ambe_hex << 1) | (ambe_fr[log_i][log_j] & 1);
++          bit_pos++;
++        }
++      }
++    }
++    db_log_ambe(ambe_hex);
++  }
+ 
+ 
+   processMbeFrame (opts, state, NULL, ambe_fr2, NULL);
+@@ -922,6 +999,25 @@ void dmrBSBootstrap (dsd_opts * opts, dsd_state * state)
+     memcpy(state->s_r4[1], state->s_r, sizeof(state->s_r));
+     memcpy(state->s_r4u[1], state->s_ru, sizeof(state->s_ru));
+   }
++  
++  // Log AMBE frame 2 to SQLite3
++  {
++    uint64_t ambe_hex = 0;
++    int bit_pos = 0;
++    int log_i, log_j;
++    for (log_i = 0; log_i < 4; log_i++)
++    {
++      for (log_j = 0; log_j < 24; log_j++)
++      {
++        if (bit_pos < 64)
++        {
++          ambe_hex = (ambe_hex << 1) | (ambe_fr2[log_i][log_j] & 1);
++          bit_pos++;
++        }
++      }
++    }
++    db_log_ambe(ambe_hex);
++  }
+ 
+   processMbeFrame (opts, state, NULL, ambe_fr3, NULL);
+   if(internalslot == 0)
+@@ -937,6 +1033,25 @@ void dmrBSBootstrap (dsd_opts * opts, dsd_state * state)
+     memcpy(state->s_r4[2], state->s_r, sizeof(state->s_r));
+     memcpy(state->s_r4u[2], state->s_ru, sizeof(state->s_ru));
+   }
++  
++  // Log AMBE frame 3 to SQLite3
++  {
++    uint64_t ambe_hex = 0;
++    int bit_pos = 0;
++    int log_i, log_j;
++    for (log_i = 0; log_i < 4; log_i++)
++    {
++      for (log_j = 0; log_j < 24; log_j++)
++      {
++        if (bit_pos < 64)
++        {
++          ambe_hex = (ambe_hex << 1) | (ambe_fr3[log_i][log_j] & 1);
++          bit_pos++;
++        }
++      }
++    }
++    db_log_ambe(ambe_hex);
++  }
+ 
+   //collect the mi fragment
+   if (opts->dmr_le != 2) //if not Hytera Enhanced
+diff --git a/src/dmr_ms.c b/src/dmr_ms.c
+index 635c259..fdfb88f 100644
+--- a/src/dmr_ms.c
++++ b/src/dmr_ms.c
+@@ -8,6 +8,7 @@
+ 
+ #include "dsd.h"
+ #include "dmr_const.h"
++#include "db_logger.h"
+ 
+ //A subroutine for processing MS voice
+ void dmrMS (dsd_opts * opts, dsd_state * state)
+@@ -244,6 +245,25 @@ void dmrMS (dsd_opts * opts, dsd_state * state)
+   memcpy (m2, ambe_fr2, sizeof(m2));
+   memcpy (m3, ambe_fr3, sizeof(m3));
+ 
++  /* Log AMBE frames to SQLite3 database */
++  uint64_t ambe_data1 = 0;
++  uint64_t ambe_data2 = 0;
++  uint64_t ambe_data3 = 0;
++  
++  /* Convert AMBE frame to 64-bit value for storage */
++  for (i = 0; i < 4; i++) {
++      for (int k = 0; k < 24; k++) { /* Use all 24 bits */
++          ambe_data1 = (ambe_data1 << 1) | (ambe_fr[i][k] & 0x01);
++          ambe_data2 = (ambe_data2 << 1) | (ambe_fr2[i][k] & 0x01);
++          ambe_data3 = (ambe_data3 << 1) | (ambe_fr3[i][k] & 0x01);
++      }
++  }
++  
++  /* Log the AMBE frames - they will be associated with current MI context */
++  db_log_ambe(ambe_data1);
++  db_log_ambe(ambe_data2);
++  db_log_ambe(ambe_data3);
++
+   processMbeFrame (opts, state, NULL, ambe_fr, NULL);
+     memcpy(state->f_l4[0], state->audio_out_temp_buf, sizeof(state->audio_out_temp_buf));
+     memcpy(state->s_l4[0], state->s_l, sizeof(state->s_l));
+diff --git a/src/dmr_pi.c b/src/dmr_pi.c
+index 1925289..800dfe1 100644
+--- a/src/dmr_pi.c
++++ b/src/dmr_pi.c
+@@ -9,6 +9,7 @@
+  *-----------------------------------------------------------------------------*/
+ 
+ #include "dsd.h"
++#include "db_logger.h"
+ 
+ void dmr_pi (dsd_opts * opts, dsd_state * state, uint8_t PI_BYTE[], uint32_t CRCCorrect, uint32_t IrrecoverableErrors)
+ {
+@@ -49,6 +50,12 @@ void dmr_pi (dsd_opts * opts, dsd_state * state, uint8_t PI_BYTE[], uint32_t CRC
+       fprintf (stderr, "\n Slot %d", state->currentslot+1);
+       fprintf (stderr, " DMR PI H- ALG ID: %02X; KEY ID: %02X; MI(40): %02X%02X%02X%02X%02X;", 
+       PI_BYTE[0], PI_BYTE[2], PI_BYTE[3], PI_BYTE[4], PI_BYTE[5], PI_BYTE[6], PI_BYTE[7]);
++      
++      // Log Header MI to SQLite3
++      if (state->currentslot == 0)
++        db_set_header_mi(state->payload_mi, state->currentslot, state->payload_algid);
++      else
++        db_set_header_mi(state->payload_miR, state->currentslot, state->payload_algidR);
+ 
+       //PI_BYTE[9] is a checksum of the other bytes combined
+       uint8_t checksum = 0;
+@@ -96,6 +103,10 @@ void dmr_pi (dsd_opts * opts, dsd_state * state, uint8_t PI_BYTE[], uint32_t CRC
+         state->payload_algid = PI_BYTE[0];
+         state->payload_keyid = PI_BYTE[2];
+         state->payload_mi    = ((unsigned long long int)PI_BYTE[3] << 24ULL) | ((unsigned long long int)PI_BYTE[4] << 16ULL) | ((unsigned long long int)PI_BYTE[5] << 8ULL) | ((unsigned long long int)PI_BYTE[6] << 0ULL);
++        
++        // Log DMRA Header MI to SQLite3
++        db_set_header_mi(state->payload_mi, state->currentslot, state->payload_algid);
++        
+         if (state->payload_algid < 0x26)
+         {
+           fprintf (stderr, "%s ", KYEL);
+@@ -163,6 +174,10 @@ void dmr_pi (dsd_opts * opts, dsd_state * state, uint8_t PI_BYTE[], uint32_t CRC
+         state->payload_algidR = PI_BYTE[0];
+         state->payload_keyidR = PI_BYTE[2];
+         state->payload_miR    = ((unsigned long long int)PI_BYTE[3] << 24ULL) | ((unsigned long long int)PI_BYTE[4] << 16ULL) | ((unsigned long long int)PI_BYTE[5] << 8ULL) | ((unsigned long long int)PI_BYTE[6] << 0ULL);
++        
++        // Log DMRA Header MI to SQLite3
++        db_set_header_mi(state->payload_miR, state->currentslot, state->payload_algidR);
++        
+         if (state->payload_algidR < 0x26)
+         {
+           fprintf (stderr, "%s ", KYEL);
+@@ -260,6 +275,9 @@ void LFSR(dsd_state * state)
+     fprintf (stderr, " RC4;");
+     fprintf (stderr, "%s", KNRM);
+     state->payload_mi = lfsr;
++    
++    // Log Control MI to SQLite3
++    db_set_control_mi(lfsr);
+   }
+ 
+   if (state->currentslot == 1)
+@@ -272,6 +290,9 @@ void LFSR(dsd_state * state)
+     fprintf (stderr, " RC4;");
+     fprintf (stderr, "%s", KNRM);
+     state->payload_miR = lfsr;
++    
++    // Log Control MI to SQLite3
++    db_set_control_mi(lfsr);
+   }
+ }
+ 
+@@ -306,6 +327,9 @@ void LFSR64(dsd_state * state)
+       state->payload_mi = lfsr & 0xFFFFFFFF; //truncate for next repitition and le verification
+       state->payload_miP = lfsr;
+       state->DMRvcL = 0;
++      
++      // Log Control MI to SQLite3 (using truncated 32-bit value)
++      db_set_control_mi(state->payload_mi);
+     }
+ 
+     if (state->currentslot == 1)
+@@ -319,6 +343,9 @@ void LFSR64(dsd_state * state)
+       state->payload_miR = lfsr & 0xFFFFFFFF; //truncate for next repitition and le verification
+       state->payload_miN = lfsr;
+       state->DMRvcR = 0;
++      
++      // Log Control MI to SQLite3 (using truncated 32-bit value)
++      db_set_control_mi(state->payload_miR);
+     }
+ 
+   }
+@@ -392,6 +419,9 @@ void LFSR128d(dsd_state * state)
+ 
+     state->payload_mi = next_mi;
+     state->DMRvcL = 0;
++    
++    // Log Control MI to SQLite3
++    db_set_control_mi(next_mi);
+ 
+   }
+ 
+@@ -411,6 +441,9 @@ void LFSR128d(dsd_state * state)
+ 
+     state->payload_miR = next_mi;
+     state->DMRvcR = 0;
++    
++    // Log Control MI to SQLite3
++    db_set_control_mi(next_mi);
+ 
+   }
+ 
+diff --git a/src/dsd_main.c b/src/dsd_main.c
+index d0ff152..8a38b6d 100644
+--- a/src/dsd_main.c
++++ b/src/dsd_main.c
+@@ -25,6 +25,7 @@
+  #include "dmr_const.h"
+  #include "provoice_const.h"
+  #include "git_ver.h"
++ #include "db_logger.h"
+  
+  #include <signal.h>
+  
+@@ -1780,6 +1781,10 @@
+    fprintf (stderr,"Total header errors: %i\n", state->debug_header_errors);
+    fprintf (stderr,"Total irrecoverable header errors: %i\n", state->debug_header_critical_errors);
+    fprintf (stderr,"Exiting.\n");
++   
++   /* Close SQLite database on exit */
++   db_close();
++   
+    exit (0);
+  }
+  
