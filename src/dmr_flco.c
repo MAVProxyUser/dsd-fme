@@ -69,7 +69,22 @@ void dmr_flco (dsd_opts * opts, dsd_state * state, uint8_t lc_bits[], uint32_t C
     int is_group_call = (flco == 0x00); /* Group Voice LC */
     int is_priority_call = (so & 0x10) ? 1 : 0;
     int is_emergency_call = (so & 0x80) ? 1 : 0;
-    int is_encrypted = (state->payload_algid != 0) ? 1 : 0;
+    
+    /* Enhanced encryption detection */
+    int is_encrypted = 0;
+    if (state->payload_algid != 0) {
+        is_encrypted = 1;  /* Standard detection via PI header */
+    } else if (state->currentslot == 0 && state->payload_mi != 0) {
+        is_encrypted = 1;  /* Detect via non-zero MI for slot 0 */
+        fprintf(stderr, "%s", KGRN);
+        fprintf(stderr, " [Encryption detected via MI value for slot 0]");
+        fprintf(stderr, "%s", KNRM);
+    } else if (state->currentslot == 1 && state->payload_miR != 0) {
+        is_encrypted = 1;  /* Detect via non-zero MI for slot 1 */
+        fprintf(stderr, "%s", KGRN);
+        fprintf(stderr, " [Encryption detected via MI value for slot 1]");
+        fprintf(stderr, "%s", KNRM);
+    }
     
     /* Determine manufacturer from FID */
     const char *manufacturer = "Unknown";
