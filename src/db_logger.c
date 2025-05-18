@@ -117,8 +117,8 @@ void db_log_ambe(uint64_t ambe) {
     
     char *errmsg = NULL;
     char *sql = sqlite3_mprintf(
-        "INSERT INTO '%q' (ambe_hex, mi_full, algid, slot) VALUES ('%q', %llu, %u, %d);",
-        tbl, ambe_hex, (unsigned long long)current_mi, current_algid, current_slot);
+        "INSERT INTO '%q' (ambe_hex, mi_full, algid, slot, superframe_id) VALUES ('%q', %llu, %u, %d, %d);",
+        tbl, ambe_hex, (unsigned long long)current_mi, current_algid, current_slot, current_superframe_id);
     
     int rc = sqlite3_exec(db, sql, NULL, NULL, &errmsg);
     if (rc != SQLITE_OK) {
@@ -152,15 +152,8 @@ void db_log_ambe(uint64_t ambe) {
         sqlite3_free(sql);
     }
     
-    /* Update the AMBE entry with superframe ID */
+    /* Increment frame count for the superframe */
     if (current_superframe_id > 0) {
-        sql = sqlite3_mprintf(
-            "UPDATE '%q' SET superframe_id = %d WHERE id = last_insert_rowid();",
-            tbl, current_superframe_id);
-        sqlite3_exec(db, sql, NULL, NULL, NULL);
-        sqlite3_free(sql);
-        
-        /* Increment frame count for the superframe */
         frame_count_in_superframe++;
     }
 }
@@ -179,7 +172,20 @@ void db_start_superframe(int slot, int color_code, const char *sync_type) {
         " sync_type TEXT,"
         " h_mi INTEGER,"
         " c_mi INTEGER,"
-        " frame_count INTEGER DEFAULT 0"
+        " frame_count INTEGER DEFAULT 0,"
+        " source_id INTEGER,"
+        " target_id INTEGER,"
+        " flco INTEGER,"
+        " fid INTEGER,"
+        " service_options INTEGER,"
+        " group_call INTEGER DEFAULT 0,"
+        " priority_call INTEGER DEFAULT 0,"
+        " emergency_call INTEGER DEFAULT 0,"
+        " encrypted INTEGER DEFAULT 0,"
+        " manufacturer TEXT,"
+        " privacy_algid INTEGER,"
+        " data_format INTEGER,"
+        " crc_passed INTEGER DEFAULT 1"
         ");");
     sqlite3_exec(db, sql, NULL, NULL, NULL);
     sqlite3_free(sql);
@@ -224,6 +230,132 @@ void db_end_superframe(void) {
     
     current_superframe_id = 0;
     frame_count_in_superframe = 0;
+}
+
+void db_set_radio_ids(uint32_t source, uint32_t target) {
+    db_init();
+    if (!db) return;
+    if (current_superframe_id == 0) return;
+    
+    char *sql = sqlite3_mprintf(
+        "UPDATE superframes SET source_id = %u, target_id = %u WHERE id = %d;",
+        source, target, current_superframe_id);
+    
+    char *errmsg = NULL;
+    int rc = sqlite3_exec(db, sql, NULL, NULL, &errmsg);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "db_logger: failed to update radio IDs: %s\n", errmsg);
+        sqlite3_free(errmsg);
+    }
+    
+    sqlite3_free(sql);
+}
+
+void db_set_flco_metadata(uint8_t flco, uint8_t fid, uint8_t so, const char *manufacturer) {
+    db_init();
+    if (!db) return;
+    if (current_superframe_id == 0) return;
+    
+    char *sql = sqlite3_mprintf(
+        "UPDATE superframes SET flco = %u, fid = %u, service_options = %u, manufacturer = '%q' WHERE id = %d;",
+        flco, fid, so, manufacturer ? manufacturer : "", current_superframe_id);
+    
+    char *errmsg = NULL;
+    int rc = sqlite3_exec(db, sql, NULL, NULL, &errmsg);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "db_logger: failed to update FLCO metadata: %s\n", errmsg);
+        sqlite3_free(errmsg);
+    }
+    
+    sqlite3_free(sql);
+}
+
+void db_set_call_flags(int group_call, int priority_call, int emergency_call, int encrypted) {
+    db_init();
+    if (!db) return;
+    if (current_superframe_id == 0) return;
+    
+    char *sql = sqlite3_mprintf(
+        "UPDATE superframes SET group_call = %d, priority_call = %d, emergency_call = %d, encrypted = %d WHERE id = %d;",
+        group_call, priority_call, emergency_call, encrypted, current_superframe_id);
+    
+    char *errmsg = NULL;
+    int rc = sqlite3_exec(db, sql, NULL, NULL, &errmsg);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "db_logger: failed to update call flags: %s\n", errmsg);
+        sqlite3_free(errmsg);
+    }
+    
+    sqlite3_free(sql);
+}
+
+void db_set_privacy_info(uint32_t algid, int data_format) {
+    db_init();
+    if (!db) return;
+    if (current_superframe_id == 0) return;
+    
+    char *sql = sqlite3_mprintf(
+        "UPDATE superframes SET privacy_algid = %u, data_format = %d WHERE id = %d;",
+        algid, data_format, current_superframe_id);
+    
+    char *errmsg = NULL;
+    int rc = sqlite3_exec(db, sql, NULL, NULL, &errmsg);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "db_logger: failed to update privacy info: %s\n", errmsg);
+        sqlite3_free(errmsg);
+    }
+    
+    sqlite3_free(sql);
+}
+
+void db_set_crc_status(int crc_passed) {
+    db_init();
+    if (!db) return;
+    if (current_superframe_id == 0) return;
+    
+    char *sql = sqlite3_mprintf(
+        "UPDATE superframes SET crc_passed = %d WHERE id = %d;",
+        crc_passed, current_superframe_id);
+    
+    char *errmsg = NULL;
+    int rc = sqlite3_exec(db, sql, NULL, NULL, &errmsg);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "db_logger: failed to update CRC status: %s\n", errmsg);
+        sqlite3_free(errmsg);
+    }
+    
+    sqlite3_free(sql);
+}
+
+void db_set_talkgroup(uint32_t talkgroup) {
+    db_init();
+    if (!db) return;
+    
+    /* Create metadata table if needed */
+    char *sql = sqlite3_mprintf(
+        "CREATE TABLE IF NOT EXISTS dmr_metadata ("
+        " id INTEGER PRIMARY KEY,"
+        " talkgroup INTEGER,"
+        " superframe_id INTEGER,"
+        " timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,"
+        " FOREIGN KEY(superframe_id) REFERENCES superframes(id)"
+        ");");
+    sqlite3_exec(db, sql, NULL, NULL, NULL);
+    sqlite3_free(sql);
+    
+    /* Insert talkgroup entry */
+    sql = sqlite3_mprintf(
+        "INSERT INTO dmr_metadata (talkgroup, superframe_id) VALUES (%u, %d);",
+        talkgroup, current_superframe_id);
+    
+    char *errmsg = NULL;
+    int rc = sqlite3_exec(db, sql, NULL, NULL, &errmsg);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "db_logger: failed to insert talkgroup: %s\n", errmsg);
+        sqlite3_free(errmsg);
+    }
+    
+    sqlite3_free(sql);
 }
 
 void db_close(void) {

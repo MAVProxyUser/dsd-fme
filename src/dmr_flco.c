@@ -10,6 +10,7 @@
  *-----------------------------------------------------------------------------*/
 
 #include "dsd.h"
+#include "db_logger.h"
 
 //combined flco handler (vlc, tlc, emb), minus the superfluous structs and strings
 void dmr_flco (dsd_opts * opts, dsd_state * state, uint8_t lc_bits[], uint32_t CRCCorrect, uint32_t * IrrecoverableErrors, uint8_t type)
@@ -55,6 +56,35 @@ void dmr_flco (dsd_opts * opts, dsd_state * state, uint8_t lc_bits[], uint32_t C
   so = (uint8_t)ConvertBitIntoBytes(&lc_bits[16], 8); //Service Options
   target = (uint32_t)ConvertBitIntoBytes(&lc_bits[24], 24); //Target or Talk Group
   source = (uint32_t)ConvertBitIntoBytes(&lc_bits[48], 24);
+  
+  /* Log metadata only if this is a VLC (Voice Link Control) */
+  if (type == 1) {  /* 1 = VLC, 2 = TLC, 3 = EMB */
+    /* Log Radio IDs to database */
+    db_set_radio_ids(source, target);
+    
+    /* Log talkgroup */
+    db_set_talkgroup(target);
+    
+    /* Extract call flags from service options */
+    int is_group_call = (flco == 0x00); /* Group Voice LC */
+    int is_priority_call = (so & 0x10) ? 1 : 0;
+    int is_emergency_call = (so & 0x80) ? 1 : 0;
+    int is_encrypted = (state->payload_algid != 0) ? 1 : 0;
+    
+    /* Determine manufacturer from FID */
+    const char *manufacturer = "Unknown";
+    if (fid == 0x00) manufacturer = "Motorola";
+    else if (fid == 0x04) manufacturer = "Motorola (Capacity+)";
+    else if (fid == 0x10) manufacturer = "Hytera";
+    else if (fid == 0x68) manufacturer = "Hytera (XPT)";
+    else if (fid == 0x58) manufacturer = "Tait";
+    
+    /* Log all metadata */
+    db_set_flco_metadata(flco, fid, so, manufacturer);
+    db_set_call_flags(is_group_call, is_priority_call, is_emergency_call, is_encrypted);
+    db_set_privacy_info(state->payload_algid, state->data_header_format[slot]);
+    db_set_crc_status((CRCCorrect == 1) ? 1 : 0);
+  }
 
   //read ahead a little to get this for the xpt flag
   if (*IrrecoverableErrors == 0 && flco == 0x09 && fid == 0x68)

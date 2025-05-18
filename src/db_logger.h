@@ -18,6 +18,24 @@ void db_start_superframe(int slot, int color_code, const char *sync_type);
 /* End the current superframe */
 void db_end_superframe(void);
 
+/* Set radio IDs for the current superframe */
+void db_set_radio_ids(uint32_t source, uint32_t target);
+
+/* Set FLCO metadata for the current superframe */
+void db_set_flco_metadata(uint8_t flco, uint8_t fid, uint8_t so, const char *manufacturer);
+
+/* Set call type flags for the current superframe */
+void db_set_call_flags(int group_call, int priority_call, int emergency_call, int encrypted);
+
+/* Set privacy/encryption info for the current superframe */
+void db_set_privacy_info(uint32_t algid, int data_format);
+
+/* Set CRC status for the current superframe */
+void db_set_crc_status(int crc_passed);
+
+/* Set talkgroup for metadata table */
+void db_set_talkgroup(uint32_t talkgroup);
+
 /* Close the database connection (call on program exit) */
 void db_close(void);
 
