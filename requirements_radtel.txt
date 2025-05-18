@@ -1,0 +1,11 @@
+# Requirements for Radtel radio control
+pyserial>=3.5
+pyaudio>=0.2.11
+numpy>=1.21.0
+
+# Optional for audio processing
+scipy>=1.7.0
+soundfile>=0.10.3
+
+# For listing USB devices
+pyusb>=1.2.0

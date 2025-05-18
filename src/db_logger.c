@@ -52,7 +52,8 @@ void db_set_header_mi(uint64_t mi, int slot, uint32_t algid) {
         " timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,"
         " mi_full INTEGER,"
         " algid INTEGER,"
-        " slot INTEGER"
+        " slot INTEGER,"
+        " superframe_id INTEGER"
         ");", tbl);
     sqlite3_exec(db, sql, NULL, NULL, &errmsg);
     if (errmsg) sqlite3_free(errmsg);
@@ -74,7 +75,8 @@ void db_set_control_mi(uint32_t mi) {
         " timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,"
         " mi_full INTEGER,"
         " algid INTEGER,"
-        " slot INTEGER"
+        " slot INTEGER,"
+        " superframe_id INTEGER"
         ");", tbl);
     sqlite3_exec(db, sql, NULL, NULL, &errmsg);
     if (errmsg) sqlite3_free(errmsg);
@@ -106,7 +108,8 @@ void db_log_ambe(uint64_t ambe) {
             " timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,"
             " mi_full INTEGER,"
             " algid INTEGER,"
-            " slot INTEGER"
+            " slot INTEGER,"
+            " superframe_id INTEGER"
             ");", tbl);
         sqlite3_exec(db, sql, NULL, NULL, NULL);
         sqlite3_free(sql);
@@ -352,6 +355,25 @@ void db_set_talkgroup(uint32_t talkgroup) {
     int rc = sqlite3_exec(db, sql, NULL, NULL, &errmsg);
     if (rc != SQLITE_OK) {
         fprintf(stderr, "db_logger: failed to insert talkgroup: %s\n", errmsg);
+        sqlite3_free(errmsg);
+    }
+    
+    sqlite3_free(sql);
+}
+
+void db_update_encrypted_flag(void) {
+    db_init();
+    if (!db) return;
+    if (current_superframe_id == 0) return;
+    
+    char *sql = sqlite3_mprintf(
+        "UPDATE superframes SET encrypted = 1 WHERE id = %d;",
+        current_superframe_id);
+    
+    char *errmsg = NULL;
+    int rc = sqlite3_exec(db, sql, NULL, NULL, &errmsg);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "db_logger: failed to update encrypted flag: %s\n", errmsg);
         sqlite3_free(errmsg);
     }
     

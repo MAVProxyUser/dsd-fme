@@ -330,6 +330,8 @@ void LFSR64(dsd_state * state)
       
       // Log Control MI to SQLite3 (using truncated 32-bit value)
       db_set_control_mi(state->payload_mi);
+      // Update encrypted flag since we have a control MI
+      db_update_encrypted_flag();
     }
 
     if (state->currentslot == 1)
@@ -346,6 +348,8 @@ void LFSR64(dsd_state * state)
       
       // Log Control MI to SQLite3 (using truncated 32-bit value)
       db_set_control_mi(state->payload_miR);
+      // Update encrypted flag since we have a control MI
+      db_update_encrypted_flag();
     }
 
   }

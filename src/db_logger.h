@@ -36,6 +36,9 @@ void db_set_crc_status(int crc_passed);
 /* Set talkgroup for metadata table */
 void db_set_talkgroup(uint32_t talkgroup);
 
+/* Update encrypted flag when MI is detected */
+void db_update_encrypted_flag(void);
+
 /* Close the database connection (call on program exit) */
 void db_close(void);
 

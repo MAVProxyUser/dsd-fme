@@ -1,0 +1,207 @@
+ ██████╗  ██████╗██████╗     ███████╗███╗   ███╗███████╗
+ ██╔══██╗██╔════╝██╔══██╗    ██╔════╝████╗ ████║██╔════╝
+ ██║  ██║╚█████╗ ██║  ██║    █████╗  ██╔████╔██║█████╗  
+ ██║  ██║ ╚═══██╗██║  ██║    ██╔══╝  ██║╚██╔╝██║██╔══╝  
+ ██████╔╝██████╔╝██████╔╝    ██║     ██║ ╚═╝ ██║███████╗
+ ╚═════╝ ╚═════╝ ╚═════╝     ╚═╝     ╚═╝     ╚═╝╚══════╝
+Build Version: AW 2025-136-gb9097d9 
+MBElib Version: 1.3.2
+CODEC2 Support Enabled
+Decoding DMR BS/MS Simplex
+Logging Frame Payload to console
+RTL Input: Found 5 device(s):
+  0:  Realtek, RTL2838UHIDIR, SN: 1004
+Selected Device #0 with Serial Number: 1004 
+  1:  Realtek, RTL2838UHIDIR, SN: 1000
+  2:  Realtek, RTL2838UHIDIR, SN: 1001
+  3:  Realtek, RTL2838UHIDIR, SN: 1002
+  4:  Realtek, RTL2838UHIDIR, SN: 1003
+Dev 0 Freq 145125000 Gain 40 PPM 0 BW 12 SQ 100 VOL 2 
+Audio In Device: rtl
+Setting RTL Bandwidth to 12000 Hz
+Setting RTL RMS Squelch Level to 100
+Found Rafael Micro R820T tuner
+Using RTLSDR Device Index: 0. 
+Tuner gain set to 40.20 dB.
+WARNING: Failed to set ppm error.
+ (Center Frequency: 145377000 Hz.) 
+Oversampling input by: 84x.
+Oversampling output by: 1x.
+Buffer size: 8.13ms
+Exact sample rate is: 1008000.009613 Hz
+Allocating 15 zero-copy buffers
+Sampling at 1008000 S/s.
+Output at 12000 Hz.
+18:16:33 Sync: +DMR MS/DM MODE/MONO | Color Code=XX | VC* 
+ AMBE 9A1D55BFFFFF80 err = [0] [2] 
+ AMBE 7D631E51FF6000 err = [1] [4] 
+ AMBE 1675BCC6A40400 err = [2] [4] 
+ AMBE 08814A0B207400 err = [1] [2] 
+ AMBE 527DFFFB5F0A80 err = [1] [1] 
+ AMBE B623A5FBC00000 err = [1] [3] 
+ AMBE 80547992286200 err = [2] [4] 
+ AMBE 40D49C455D8B80 err = [1] [3] 
+ AMBE B623B5A0808000 err = [0] [2] 
+ AMBE 76D97F2284B000 err = [2] [3] 
+ AMBE 145CFFFAC52000 err = [2] [5] 
+ AMBE A23BC47C880000 err = [1] [4] 
+ AMBE 80A3993014E000 err = [0] [2] 
+ AMBE 14C9112B880A00 err = [1] [3] 
+ AMBE B62B34DC740000 err = [1] [2] 
+ AMBE A0B4D3A914A200 err = [1] [2] 
+ AMBE 805D7DBC005980 err = [1] [3] 
+ AMBE B65EA446E40200 err = [1] [2] 
+[31m SLOT 1 FLCO FEC ERR [0m[31m (FEC ERR)[0m
+[36m DMR PDU Payload [F0][FE][1E][44][91][24][40][00][00][0m
+18:16:33 Sync: +DMR MS/DM MODE/MONO | Color Code=XX | VC* 
+ AMBE AA21E846001000 err = [1] [2] 
+ AMBE 5D1B62095BD880 err = [0] [0] 
+ AMBE 6A3C0C6C303E80 err = [0] [0] 
+ AMBE AA2DE343904680 err = [0] [0] 
+ AMBE 5D177A08394A80 err = [0] [0] 
+ AMBE 6C3899F6FBCF00 err = [0] [0] 
+ AMBE BA17B69F5C2700 err = [0] [0] 
+ AMBE 5D1DF289BA1E80 err = [0] [0] 
+ AMBE 6C345F6054BB80 err = [0] [0] 
+ AMBE DA16F89F99A680 err = [1] [1] 
+ AMBE 5D1FD2077A8880 err = [0] [0] 
+ AMBE 6C3D5CEF8CFB80 err = [0] [0] 
+ AMBE CA17232C7B4E80 err = [0] [0] 
+ AMBE 5D1FDB09B90B00 err = [0] [0] 
+ AMBE 6C3516E6243980 err = [0] [0] 
+ AMBE DA16694F9BDB80 err = [1] [1] 
+ AMBE 5D1F221E316980 err = [0] [0] 
+ AMBE 6C343DA38AC680 err = [0] [0] 
+[32m SLOT 1 TGT=16777215 SRC=6969 FLCO=0x00 FID=0x00 SVC=0x08 Group Broadcast Call [0m 
+[36m DMR PDU Payload [00][00][08][FF][FF][FF][00][1B][39][0m[36m SB: 00000000000 - 000; [0m
+
+18:16:34 Sync: +DMR MS/DM MODE/MONO | Color Code=00 | VC* 
+ AMBE BA1B83AE1A4980 err = [0] [0] 
+ AMBE 5D1AF21DF21B00 err = [0] [0] 
+ AMBE 6C3856AF9B0B00 err = [0] [0] 
+ AMBE E81AA9DE698280 err = [0] [0] 
+ AMBE 5D1FD281388B80 err = [0] [0] 
+ AMBE 6C38597CD4DC80 err = [0] [0] 
+ AMBE AA3E05EC33C780 err = [0] [0] 
+ AMBE A81EBA136B4680 err = [0] [0] 
+ AMBE 5A2943299F6880 err = [0] [0] 
+ AMBE BA7615FD494480 err = [0] [0] 
+ AMBE C8243090A80A80 err = [0] [0] 
+ AMBE B82DD64EE99180 err = [0] [0] 
+ AMBE A8177BBF6B6980 err = [0] [0] 
+ AMBE 5D1AB29C598B80 err = [0] [0] 
+ AMBE 6C305D03B39780 err = [0] [0] 
+ AMBE BA17D29E194680 err = [0] [0] 
+ AMBE 5D1F4A0E721A80 err = [0] [0] 
+ AMBE 6C351060757A80 err = [0] [0] 
+[32m SLOT 1 TGT=16777215 SRC=6969 FLCO=0x00 FID=0x00 SVC=0x08 Group Broadcast Call [0m 
+[36m DMR PDU Payload [00][00][08][FF][FF][FF][00][1B][39][0m[36m SB: 00000000000 - 000; [0m
+
+18:16:34 Sync: +DMR MS/DM MODE/MONO | Color Code=00 | VC* 
+ AMBE CA1AABDC1D7E00 err = [0] [0] 
+ AMBE 5D1F5B83B1DB00 err = [0] [0] 
+ AMBE 6C38543C6D1280 err = [0] [0] 
+ AMBE DA1ACB9158DC00 err = [1] [1] 
+ AMBE 5D1DFA0E31BF80 err = [0] [0] 
+ AMBE 6C389161ADC780 err = [0] [0] 
+ AMBE CA1A6B927A6E00 err = [0] [0] 
+ AMBE 5D1AF20FD12F00 err = [0] [0] 
+ AMBE 6C381C60ADDB00 err = [0] [0] 
+ AMBE B71EF24F4A8500 err = [0] [0] 
+ AMBE 5D12BA0CF2BA80 err = [0] [0] 
+ AMBE 6C3437F34D7E80 err = [0] [0] 
+ AMBE BA1A639C7F6380 err = [0] [0] 
+ AMBE 5D1AFA8E79A880 err = [0] [0] 
+ AMBE 6C38153F859380 err = [0] [0] 
+ AMBE DA16A291D27E80 err = [1] [1] 
+ AMBE 5D1BDA0EB21F80 err = [0] [0] 
+ AMBE 6C3437618DE300 err = [0] [0] 
+[32m SLOT 1 TGT=16777215 SRC=6969 FLCO=0x00 FID=0x00 SVC=0x08 Group Broadcast Call [0m 
+[36m DMR PDU Payload [00][00][08][FF][FF][FF][00][1B][39][0m[36m SB: 00000000000 - 000; [0m
+
+18:16:35 Sync: +DMR MS/DM MODE/MONO | Color Code=00 | VC* 
+ AMBE DA17D99E7AED00 err = [1] [1] 
+ AMBE 5D1AFA09526900 err = [0] [0] 
+ AMBE 6C343171A54080 err = [0] [0] 
+ AMBE DA1B8BCE7BF980 err = [1] [1] 
+ AMBE 5D1DFA0F512E80 err = [0] [0] 
+ AMBE 6C3811E0C55A80 err = [0] [0] 
+ AMBE DA16F61FBB1500 err = [1] [1] 
+ AMBE 5D1CB6B35A9D00 err = [0] [0] 
+ AMBE 6C35594C62E900 err = [0] [0] 
+ AMBE EA166BEF936A80 err = [0] [0] 
+ AMBE 5D17BA0F329980 err = [0] [0] 
+ AMBE 6C38316EFD4B00 err = [0] [0] 
+ AMBE DA17829E5C7100 err = [1] [1] 
+ AMBE 5D1AFA8C11BB00 err = [0] [0] 
+ AMBE 6C381763B5DF00 err = [0] [0] 
+ AMBE DA1AA8A17C1D80 err = [1] [1] 
+ AMBE 5D1AFA02911B80 err = [0] [0] 
+ AMBE 6C3431E1EE8C80 err = [0] [0] 
+[32m SLOT 1 TGT=16777215 SRC=6969 FLCO=0x00 FID=0x00 SVC=0x08 Group Broadcast Call [0m 
+[36m DMR PDU Payload [00][00][08][FF][FF][FF][00][1B][39][0m[36m SB: 00000000000 - 000; [0m
+
+18:16:35 Sync: +DMR MS/DM MODE/MONO | Color Code=00 | VC* 
+ AMBE EA12B84E39D380 err = [0] [0] 
+ AMBE 5D1FDA0E120F80 err = [0] [0] 
+ AMBE 6C343161E54F80 err = [0] [0] 
+ AMBE CA2AF9F7570900 err = [1] [1] 
+ AMBE 4D14FA09B7FE80 err = [0] [0] 
+ AMBE 6C35114604D380 err = [0] [0] 
+ AMBE DA18FBAEBE6B80 err = [1] [1] 
+ AMBE 5D1FDA8F71EC80 err = [0] [0] 
+ AMBE 6C385D62CE8E80 err = [0] [0] 
+ AMBE DA1AD29D767B80 err = [1] [1] 
+ AMBE 5D1A720E718B00 err = [0] [0] 
+ AMBE 6C389D6E85A300 err = [0] [0] 
+ AMBE EA18F341797180 err = [0] [0] 
+ AMBE 5D1BDA0ED2BF80 err = [0] [0] 
+ AMBE 6C3817EF455A80 err = [0] [0] 
+ AMBE EA1AA841788100 err = [0] [0] 
+ AMBE 5D1AFA0BB28B80 err = [0] [0] 
+ AMBE 6C3435EDAD8C80 err = [0] [0] 
+[32m SLOT 1 TGT=16777215 SRC=6969 FLCO=0x00 FID=0x00 SVC=0x08 Group Broadcast Call [0m 
+[36m DMR PDU Payload [00][00][08][FF][FF][FF][00][1B][39][0m[36m SB: 00000000000 - 000; [0m
+
+18:16:35 Sync: +DMR MS/DM MODE/MONO | Color Code=00 | VC* 
+ AMBE EA1ACA409A7280 err = [0] [0] 
+ AMBE 5D1DF20F522B00 err = [0] [0] 
+ AMBE 6C343761AD4F00 err = [0] [0] 
+ AMBE DA1A684E584780 err = [1] [1] 
+ AMBE 5D1AAA0971AB00 err = [0] [0] 
+ AMBE 6C3437E6EE5F80 err = [0] [0] 
+ AMBE DA1DCB4E537280 err = [1] [1] 
+ AMBE 5D1AF208119F00 err = [0] [0] 
+ AMBE 6C3435E66D8B00 err = [0] [0] 
+ AMBE DA14FE1F5AB680 err = [1] [1] 
+ AMBE 5D1ABA0971A880 err = [0] [0] 
+ AMBE 6C3517F6CD7E00 err = [0] [0] 
+ AMBE B71E2299495480 err = [0] [0] 
+ AMBE 5D17DA0F91BF00 err = [0] [0] 
+ AMBE 6C3855563D6280 err = [0] [0] 
+ AMBE DA17BBB1BEC780 err = [1] [1] 
+ AMBE 5D1DFA0972A800 err = [0] [0] 
+ AMBE 6C381756847600 err = [0] [0] 
+[32m SLOT 1 TGT=16777215 SRC=6969 FLCO=0x00 FID=0x00 SVC=0x08 Group Broadcast Call [0m 
+[36m DMR PDU Payload [00][00][08][FF][FF][FF][00][1B][39][0m[36m SB: 00000000000 - 000; [0m
+
+18:16:36 Sync: +DMR MS/DM MODE/MONO | Color Code=00 | TLC [31m 
+ SLOT 1 TGT=16777215 SRC=6969 FLCO=0x00 FID=0x00 SVC=0x08 Group Broadcast Call [0m 
+[36m DMR PDU Payload [00][00][08][FF][FF][FF][00][1B][39][FC][B4][68][0m
+Sync: no sync
+18:16:37 Sync: +DMR MS/DM MODE/MONO | Color Code=00 [31m| CACH/Burst FEC ERR[0m
+18:16:37 Sync: +DMR MS/DM MODE/MONO | Color Code=00 | VLC [32m 
+ SLOT 1 TGT=16777215 SRC=1234 FLCO=0x00 FID=0x10 SVC=0x48 Group [31mEncrypted Broadcast Call [0m 
+[36m DMR PDU Payload [00][10][48][FF][FF][FF][00][04][D2][18][AB][1F][0m
+18:16:37 Sync: +DMR MS/DM MODE/MONO | Color Code=00 | VLC [32m 
+ SLOT 1 TGT=16777215 SRC=1234 FLCO=0x00 FID=0x10 SVC=0x48 Group [31mEncrypted Broadcast Call [0m 
+[36m DMR PDU Payload [00][10][48][FF][FF][FF][00][04][D2][18][AB][1F][0m
+18:16:37 Sync: +DMR MS/DM MODE/MONO | Color Code=00 | VLC [32m 
+ SLOT 1 TGT=16777215 SRC=1234 FLCO=0x00 FID=0x10 SVC=0x48 Group [31mEncrypted Broadcast Call [0m 
+[36m DMR PDU Payload [00][10][48][FF][FF][FF][00][04][D2][18][AB][1F][0m
+cleaning up...
+
+Total audio errors: 69
+Total header errors: 0
+Total irrecoverable header errors: 0
+Exiting.
