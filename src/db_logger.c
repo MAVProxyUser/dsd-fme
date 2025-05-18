@@ -2,6 +2,8 @@
 #include <stdint.h>
 #include <sqlite3.h>
 #include <time.h>
+#include <sys/time.h>
+#include <string.h>
 #include "db_logger.h"
 
 static sqlite3 *db = NULL;
@@ -17,20 +19,43 @@ static int frame_count_in_superframe = 0;
 static void db_init(void) {
     if (!db) {
         char db_filename[256];
+        char final_filename[256];
         time_t now = time(NULL);
         struct tm *tm_now = localtime(&now);
-        snprintf(db_filename, sizeof(db_filename), "dmr_capture_%04d%02d%02d_%02d%02d%02d.db",
-                 tm_now->tm_year + 1900, tm_now->tm_mon + 1, tm_now->tm_mday,
-                 tm_now->tm_hour, tm_now->tm_min, tm_now->tm_sec);
+        struct timeval tv;
+        gettimeofday(&tv, NULL);
         
-        int rc = sqlite3_open(db_filename, &db);
+        /* Always use microseconds for consistent format */
+        snprintf(db_filename, sizeof(db_filename), "dmr_capture_%04d%02d%02d_%02d%02d%02d_%06ld.db",
+                 tm_now->tm_year + 1900, tm_now->tm_mon + 1, tm_now->tm_mday,
+                 tm_now->tm_hour, tm_now->tm_min, tm_now->tm_sec, tv.tv_usec);
+        
+        /* Check if file exists, if so increment microseconds */
+        strcpy(final_filename, db_filename);
+        FILE *test = fopen(final_filename, "r");
+        int counter = 0;
+        
+        while (test && counter < 999999) {
+            fclose(test);
+            counter++;
+            snprintf(final_filename, sizeof(final_filename), "dmr_capture_%04d%02d%02d_%02d%02d%02d_%06ld.db",
+                     tm_now->tm_year + 1900, tm_now->tm_mon + 1, tm_now->tm_mday,
+                     tm_now->tm_hour, tm_now->tm_min, tm_now->tm_sec, (tv.tv_usec + counter) % 1000000);
+            test = fopen(final_filename, "r");
+        }
+        
+        if (test) {
+            fclose(test);
+        }
+        
+        int rc = sqlite3_open(final_filename, &db);
         if (rc != SQLITE_OK) {
-            fprintf(stderr, "db_logger: cannot open database %s: %s\n", db_filename, sqlite3_errmsg(db));
+            fprintf(stderr, "db_logger: cannot open database %s: %s\n", final_filename, sqlite3_errmsg(db));
             sqlite3_close(db);
             db = NULL;
         } else {
             sqlite3_exec(db, "PRAGMA foreign_keys = OFF;", NULL, NULL, NULL);
-            fprintf(stderr, "db_logger: opened database %s\n", db_filename);
+            fprintf(stderr, "db_logger: opened database %s\n", final_filename);
         }
     }
 }
