@@ -29,7 +29,7 @@ static void db_init(void) {
             sqlite3_close(db);
             db = NULL;
         } else {
-            sqlite3_exec(db, "PRAGMA foreign_keys = ON;", NULL, NULL, NULL);
+            sqlite3_exec(db, "PRAGMA foreign_keys = OFF;", NULL, NULL, NULL);
             fprintf(stderr, "db_logger: opened database %s\n", db_filename);
         }
     }
@@ -333,6 +333,7 @@ void db_set_crc_status(int crc_passed) {
 void db_set_talkgroup(uint32_t talkgroup) {
     db_init();
     if (!db) return;
+    if (current_superframe_id == 0) return;
     
     /* Create metadata table if needed */
     char *sql = sqlite3_mprintf(
@@ -340,8 +341,7 @@ void db_set_talkgroup(uint32_t talkgroup) {
         " id INTEGER PRIMARY KEY,"
         " talkgroup INTEGER,"
         " superframe_id INTEGER,"
-        " timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,"
-        " FOREIGN KEY(superframe_id) REFERENCES superframes(id)"
+        " timestamp DATETIME DEFAULT CURRENT_TIMESTAMP"
         ");");
     sqlite3_exec(db, sql, NULL, NULL, NULL);
     sqlite3_free(sql);
