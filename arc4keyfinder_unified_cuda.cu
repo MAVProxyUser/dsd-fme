@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <unistd.h>  // For usleep
+#include <time.h>    // For time functions
 #include <cuda_runtime.h>
 
 // Constants
@@ -209,11 +211,83 @@ extern "C" int cuda_run_gpu_search(unsigned char *test_data, char *mi, int block
     printf("Launching GPU search with %d blocks, %d threads per block for block %02X...\n", 
            blocksPerGrid, threadsPerBlock, block);
     
+    // Time tracking
+    time_t start_time = time(NULL);
+    time_t last_update_time = start_time;
+    
+    // Total keys to search (for progress calculation)
+    uint64_t total_keys = 0x1000000ULL;
+    
     // Launch kernel
     brute_force_kernel<<<blocksPerGrid, threadsPerBlock>>>(device_params);
     
-    // Wait for completion
-    cudaDeviceSynchronize();
+    // Progress reporting while kernel is running
+    bool kernel_running = true;
+    KeyFinderParams progress_params;
+    
+    while (kernel_running) {
+        // Check if kernel is still running
+        cudaError_t err = cudaDeviceSynchronize();
+        if (err == cudaSuccess) {
+            kernel_running = false;
+        }
+        
+        // Get progress update every second
+        time_t current_time = time(NULL);
+        if (difftime(current_time, last_update_time) >= 1.0) {
+            // Copy current progress without interrupting kernel
+            error = cudaMemcpy(&progress_params, device_params, sizeof(KeyFinderParams), 
+                              cudaMemcpyDeviceToHost);
+            
+            if (error == cudaSuccess) {
+                // Calculate and display progress
+                double elapsed = difftime(current_time, start_time);
+                uint64_t keys_tested = progress_params.keys_tested;
+                double percentage = (double)keys_tested / total_keys * 100.0;
+                double keys_per_sec = elapsed > 0 ? keys_tested / elapsed : 0;
+                double eta = keys_per_sec > 0 ? (total_keys - keys_tested) / keys_per_sec : 0;
+                
+                // Format time for display
+                char eta_str[20] = "calculating...";
+                if (keys_per_sec > 0 && percentage > 0.1) {
+                    int hours = (int)(eta / 3600);
+                    int minutes = (int)((eta - hours * 3600) / 60);
+                    int seconds = (int)(eta - hours * 3600 - minutes * 60);
+                    
+                    if (hours > 0) {
+                        snprintf(eta_str, sizeof(eta_str), "%02d:%02d:%02d", hours, minutes, seconds);
+                    } else {
+                        snprintf(eta_str, sizeof(eta_str), "%02d:%02d", minutes, seconds);
+                    }
+                }
+                
+                // Display progress bar and statistics
+                printf("\r\033[KGPU Block 0x%02X: [", block);
+                int bar_width = 25;
+                int filled_width = (int)(percentage * bar_width / 100.0);
+                for (int i = 0; i < bar_width; i++) {
+                    if (i < filled_width) printf("#");
+                    else printf(" ");
+                }
+                printf("] %.1f%% | %.1f M keys/s | ETA: %s", 
+                      percentage, keys_per_sec / 1000000.0, eta_str);
+                fflush(stdout);
+                
+                // Check if key was found
+                if (progress_params.key_found) {
+                    kernel_running = false;
+                }
+            }
+            
+            last_update_time = current_time;
+        }
+        
+        // Small sleep to avoid hammering the GPU
+        usleep(100000); // 100ms
+    }
+    
+    // Print newline after progress bar
+    printf("\n");
     
     // Check for errors
     error = cudaGetLastError();
