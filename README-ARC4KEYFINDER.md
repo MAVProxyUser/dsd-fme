@@ -84,6 +84,68 @@ Search with real data:
 ./arc4keyfinder_unified --mode 1 --frame "00112233445566778899AABBCCDDEEFF" --mi "0011223344556677" --start-block 0 --end-block 255 --verbose
 ```
 
+## Real World Example with Test Database
+
+Here's an example of searching for a key in a test database:
+
+```bash
+#!/bin/bash
+# Test data from test_db/test_dmr.db
+FRAME1="7805077400004000"
+FRAME2="ED2D4F7100006000"
+FRAME3="596AF1C800008000"
+MI="ABCDEF12"
+
+# Run with a limited block range for quicker testing (0x78 is the first byte of the first frame)
+./arc4keyfinder_unified --mode 1 --frame "$FRAME1" --frame "$FRAME2" --frame "$FRAME3" --mi "$MI" --start-block 0x78 --end-block 0x78 --verbose
+```
+
+Output:
+```
+CUDA: Using Xavier, Compute Capability 7.2
+GPU acceleration available and enabled.
+Selected DMR mode: 1
+Using plaintext pattern: AA BB CC DD EE FF 11 22 33 44 55 66 
+Processing frame 1: 7805077400004000
+Extracted keystream segment 1: D2 BE CB A9 
+Processing frame 2: ED2D4F7100006000
+Extracted keystream segment 2: 03 D2 5E 53 
+Processing frame 3: 596AF1C800008000
+Extracted keystream segment 3: 6A 2E A4 AE 
+
+Derived target keystream: D2 BE CB A9 03 D2 5E 53 6A 2E A4 AE 
+
+[PHASE 1] Sequential search of common blocks
+==========================================
+Testing single block 0x78 directly
+Trying GPU search for block 0x78...
+Launching GPU search with 1024 blocks, 256 threads per block for block 78...
+
+========================================
+KEY FOUND with GPU!
+Key: 12345678
+Key bytes: 12 34 56 78
+Block byte (last byte): 78
+MI: ABCDEF12
+========================================
+
+==========================================
+Search completed in 5.0 seconds
+Total keys tested: 0
+
+SUCCESS! KEY FOUND: 0x12345678
+Key bytes: 12 34 56 78
+Block byte (last byte): 78
+```
+
+For a more comprehensive search using all blocks (0x00-0xFF), simply omit the start-block and end-block parameters:
+
+```bash
+./arc4keyfinder_unified --mode 1 --frame "7805077400004000" --frame "ED2D4F7100006000" --frame "596AF1C800008000" --mi "ABCDEF12" --verbose
+```
+
+This will perform the full three-phase search using both CPU and GPU resources optimally.
+
 ## Search Strategy in Unified Implementation
 
 The unified implementation uses a three-phase search approach:
