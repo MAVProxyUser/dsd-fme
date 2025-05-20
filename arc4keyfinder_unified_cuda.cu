@@ -25,7 +25,18 @@ typedef struct {
     uint8_t block;                // Block value to test (last byte)
     uint32_t found_key;           // Output: found key
     int key_found;                // Output: flag if key was found
+    uint64_t keys_tested;         // Counter for keys tested
 } KeyFinderParams;
+
+// Custom atomic add for 64-bit values (not natively supported on all devices)
+__device__ unsigned long long atomicAdd64(unsigned long long* address, unsigned long long val) {
+    unsigned long long old = *address, assumed;
+    do {
+        assumed = old;
+        old = atomicCAS(address, assumed, val + assumed);
+    } while (assumed != old);
+    return old;
+}
 
 // Function to check if CUDA-capable device is available
 extern "C" bool cuda_check_gpu_available() {
@@ -54,6 +65,9 @@ __global__ void brute_force_kernel(KeyFinderParams *params) {
     uint64_t key_range = ((uint64_t)params->key_base_end - (uint64_t)params->key_base_start) + 1;
     uint64_t keys_per_thread = (key_range + total_threads - 1) / total_threads;
     
+    // Local counter for keys tested
+    uint32_t local_keys_tested = 0;
+    
     uint32_t my_start = params->key_base_start + thread_id * keys_per_thread;
     uint32_t my_end = my_start + keys_per_thread - 1;
     
@@ -69,8 +83,13 @@ __global__ void brute_force_kernel(KeyFinderParams *params) {
     
     // Test keys in our range
     for (uint32_t key_base = my_start; key_base <= my_end; key_base++) {
+        // Increment local key counter
+        local_keys_tested++;
+        
         // Check if key already found by another thread
         if (params->key_found) {
+            // Add tested keys to global counter before returning
+            atomicAdd64((unsigned long long*)&params->keys_tested, (unsigned long long)local_keys_tested);
             return;
         }
         
@@ -130,9 +149,15 @@ __global__ void brute_force_kernel(KeyFinderParams *params) {
             // Use atomicExch to safely update shared variables
             atomicExch(&params->found_key, key);
             atomicExch(&params->key_found, 1);
+            
+            // Update key counter before returning
+            atomicAdd64((unsigned long long*)&params->keys_tested, (unsigned long long)local_keys_tested);
             return;  // Exit after finding a key
         }
     }
+    
+    // Update key counter even if no key found
+    atomicAdd64((unsigned long long*)&params->keys_tested, (unsigned long long)local_keys_tested);
 }
 
 // Function is implemented in the extern "C" check_gpu_available() function above
@@ -157,6 +182,7 @@ extern "C" int cuda_run_gpu_search(unsigned char *test_data, char *mi, int block
     memcpy(host_params.test_data, test_data, 12);
     host_params.key_found = 0;
     host_params.found_key = 0;
+    host_params.keys_tested = 0;
     host_params.block = block;
     host_params.key_base_start = 0;
     host_params.key_base_end = 0xFFFFFF;  // 24 bits (3 bytes)
@@ -207,6 +233,9 @@ extern "C" int cuda_run_gpu_search(unsigned char *test_data, char *mi, int block
     
     // Free device memory
     cudaFree(device_params);
+    
+    // Report keys tested
+    printf("GPU Keys tested: %llu\n", (unsigned long long)host_params.keys_tested);
     
     // Check if key was found
     if (host_params.key_found) {

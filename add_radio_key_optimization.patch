@@ -1,0 +1,176 @@
+diff --git a/arc4keyfinder_unified.c b/arc4keyfinder_unified.c
+index eaf2a6c..addd2d3 100644
+--- a/arc4keyfinder_unified.c
++++ b/arc4keyfinder_unified.c
+@@ -31,6 +31,7 @@ bool verbose_mode = false;        // Verbose output
+ bool use_test_data = false;       // Use test data
+ bool use_gpu = true;              // Use GPU if available
+ bool force_cpu = false;           // Force CPU only
++bool radio_defaults = false;      // Use radio default key patterns
+ bool skip_blocks = false;         // Skip some blocks
+ uint32_t known_test_key = 0;      // Known test key
+ uint64_t keys_tested = 0;         // Keys tested counter
+@@ -50,6 +51,10 @@ const int KNOWN_BLOCKS[] = {0x78, 0x32, 0xDD, 0xAA, 0xBB, 0xCC, 0x00, 0xFF};
+ const int KNOWN_BLOCKS_COUNT = 8;
+ 
+ // GPU optimized blocks based on benchmarks
++const int DEFAULT_RADIO_KEYS[] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 
++                                  0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14,
++                                  0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E};
++const int DEFAULT_RADIO_KEYS_COUNT = 30; // First 30 keys (can extend to 0x64/100)
+ const int GPU_BLOCKS[] = {0x78, 0x32, 0xDD, 0xAA, 0x00, 0xFF, 0x77, 0x33, 0x11, 0x22, 0x44, 0x88, 0x55};
+ const int GPU_BLOCKS_COUNT = 13;
+ 
+@@ -110,6 +115,7 @@ bool parse_cmd_args(int argc, char **argv, char *mode,
+         {"gpu", no_argument, 0, 'g'},
+         {"cpu", no_argument, 0, 'c'},
+         {"skip-blocks", no_argument, 0, 'S'},
++        {"radio-defaults", no_argument, 0, 'R'},
+         {"help", no_argument, 0, 'h'},
+         {0, 0, 0, 0}
+     };
+@@ -125,7 +131,7 @@ bool parse_cmd_args(int argc, char **argv, char *mode,
+     *num_threads = get_nprocs();  // Get number of CPU cores
+     if (*num_threads > 255) *num_threads = 255;
+     
+-    while ((c = getopt_long(argc, argv, "m:f:i:s:e:t:k:l:dvTgcSh", long_options, &option_index)) != -1) {
++    while ((c = getopt_long(argc, argv, "m:f:i:s:e:t:k:l:dvTgcSRh", long_options, &option_index)) != -1) {
+         switch (c) {
+             case 'm':
+                 *mode = optarg[0];
+@@ -229,6 +235,10 @@ bool parse_cmd_args(int argc, char **argv, char *mode,
+                 skip_blocks = true;
+                 break;
+                 
++            case 'R':
++                radio_defaults = true;
++                break;
++                
+             case 'h':
+                 print_usage(argv[0]);
+                 return false;
+@@ -317,6 +327,13 @@ void print_usage(const char *progname) {
+     printf("  -g, --gpu                  Enable GPU (default if available)\n");
+     printf("  -c, --cpu                  Force CPU only\n");
+     printf("  -S, --skip-blocks          Skip some blocks\n");
++    printf("  -R, --radio-defaults       Use radio default key patterns (00000001-00000100)\n");
++    printf("\n");
++    printf("Radio Default Key Strategy:\n");
++    printf("  When --radio-defaults is enabled, the program will first check for\n");
++    printf("  common DMR radio default keys (00000001-00000100). For many commercial\n");
++    printf("  DMR radios, the default keys follow a sequential pattern where the\n");
++    printf("  last byte matches the channel number.\n");
+     printf("\n");
+ }
+ 
+@@ -665,6 +682,28 @@ int main(int argc, char **argv) {
+     printf("Derived target keystream: ");
+     print_array(test_data, 12, NULL);
+     printf("\n");
++
++    // If radio defaults mode is enabled, try those keys first
++    if (radio_defaults) {
++        printf("\n[RADIO DEFAULTS] Checking common radio default keys\n");
++        printf("==========================================\n");
++        printf("Typical DMR radios use keys from 00000001-00000100\n");
++        
++        // Extract key block from first frame if possible (optimization)
++        int first_frame_block = test_data[0];
++        printf("First frame suggests block 0x%02X as a possibility\n", first_frame_block);
++        
++        // Try this block first if it's in range of typical radio defaults
++        if (first_frame_block > 0x00 && first_frame_block <= 0x64) {
++            printf("Trying potential radio default key with block 0x%02X...\n", first_frame_block);
++            uint32_t found_key = 0;
++            if (process_block_sequential(test_data, mi, first_frame_block, &found_key) == 0) {
++                printf("\nSUCCESS! KEY FOUND: 0x%08X\n", found_key);
++                return 0;
++            }
++        }
++    }
++    
+     
+     // PHASE 1: Sequential search of common blocks
+     printf("\n[PHASE 1] Sequential search of common blocks\n");
+@@ -673,6 +712,19 @@ int main(int argc, char **argv) {
+     gettimeofday(&start_time, NULL);
+     gettimeofday(&last_progress, NULL);
+     
++    // If radio defaults mode is enabled, prioritize those blocks
++    if (radio_defaults) {
++        for (int i = 0; i < DEFAULT_RADIO_KEYS_COUNT; i++) {
++            int block = DEFAULT_RADIO_KEYS[i];
++            if (block >= start_block && block <= end_block) {
++                printf("Testing radio default key block 0x%02X...\n", block);
++                uint32_t found_key = 0;
++                if (process_block_with_gpu(test_data, mi, block, &found_key) == 0) {
++                    return 0;  // Key found!
++                }
++            }
++        }
++    }
+     
+     // First, try the common blocks sequentially
+     for (int i = 0; i < KNOWN_BLOCKS_COUNT; i++) {
+diff --git a/arc4keyfinder_unified_cuda.cu b/arc4keyfinder_unified_cuda.cu
+index a632e4d..28a18ee 100644
+--- a/arc4keyfinder_unified_cuda.cu
++++ b/arc4keyfinder_unified_cuda.cu
+@@ -23,6 +23,7 @@ typedef struct {
+     unsigned char test_data[12];  // Target keystream data 
+     uint32_t key_base_start;      // Starting key base
+     uint32_t key_base_end;        // Ending key base
++    uint64_t keys_tested;         // Number of keys tested
+     uint8_t block;                // Block value to test (last byte)
+     uint32_t found_key;           // Output: found key
+     int key_found;                // Output: flag if key was found
+@@ -55,6 +56,7 @@ __global__ void brute_force_kernel(KeyFinderParams *params) {
+     uint64_t key_range = ((uint64_t)params->key_base_end - (uint64_t)params->key_base_start) + 1;
+     uint64_t keys_per_thread = (key_range + total_threads - 1) / total_threads;
+     
++    uint32_t local_keys_tested = 0;
+     uint32_t my_start = params->key_base_start + thread_id * keys_per_thread;
+     uint32_t my_end = my_start + keys_per_thread - 1;
+     
+@@ -73,6 +75,9 @@ __global__ void brute_force_kernel(KeyFinderParams *params) {
+             return;
+         }
+         
++        // Increment local key counter
++        local_keys_tested++;
++        
+         // Construct key with the block byte
+         uint32_t key = (key_base << 8) | params->block;
+         
+@@ -129,9 +134,16 @@ __global__ void brute_force_kernel(KeyFinderParams *params) {
++            
++            // Add keys tested to total count
++            atomicAdd(&params->keys_tested, local_keys_tested);
+             return;  // Exit after finding a key
+         }
+     }
++    
++    // Add keys tested to total count
++    if (local_keys_tested > 0)
++        atomicAdd(&params->keys_tested, local_keys_tested);
+ }
+ 
+ // Function is implemented in the extern "C" check_gpu_available() function above
+@@ -154,6 +166,7 @@ extern "C" int cuda_run_gpu_search(unsigned char *test_data, char *mi, int block
+     KeyFinderParams host_params;
+     memcpy(host_params.test_data, test_data, 12);
+     host_params.key_found = 0;
++    host_params.keys_tested = 0;
+     host_params.found_key = 0;
+     host_params.block = block;
+     host_params.key_base_start = 0;
+@@ -205,6 +218,9 @@ extern "C" int cuda_run_gpu_search(unsigned char *test_data, char *mi, int block
+     // Free device memory
+     cudaFree(device_params);
+     
++    // Report keys tested
++    printf("GPU Keys tested: %llu\n", (unsigned long long)host_params.keys_tested);
++    
+     // Check if key was found
+     if (host_params.key_found) {
+         *found_key = host_params.found_key;
