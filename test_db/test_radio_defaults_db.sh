@@ -30,9 +30,13 @@ for TABLE in $TABLES; do
     KEY_HEX=${TABLE:2:8}
     BLOCK_HEX=${KEY_HEX: -2}
     
+    # Get the MI from the database
+    MI_HEX=$(sqlite3 $DB_PATH "SELECT mi_hex FROM radio_defaults_info WHERE key_hex='$KEY_HEX' LIMIT 1;")
+    
     echo "========================================================"
     echo "Testing table: $TABLE"
     echo "Expected key: $KEY_HEX (Block: $BLOCK_HEX)"
+    echo "Using MI: $MI_HEX (different from key for realistic testing)"
     
     # Get the frames from the database
     FRAMES=()
@@ -54,7 +58,7 @@ for TABLE in $TABLES; do
     LOG_FILE="$LOG_DIR/${KEY_HEX}_radio_defaults.log"
     
     # Build the command for first 3 frames
-    CMD="./arc4keyfinder_unified --mode 1 --mi \"$KEY_HEX\" --radio-defaults --verbose"
+    CMD="./arc4keyfinder_unified --mode 1 --mi \"$MI_HEX\" --radio-defaults --verbose"
     for ((i=0; i<3 && i<${#FRAMES[@]}; i++)); do
         CMD+=" --frame \"${FRAMES[i]}\""
     done
@@ -81,7 +85,7 @@ for TABLE in $TABLES; do
     LOG_FILE="$LOG_DIR/${KEY_HEX}_targeted.log"
     
     # Build the command for first 3 frames with targeted block
-    CMD="./arc4keyfinder_unified --mode 1 --mi \"$KEY_HEX\" --start-block 0x$BLOCK_HEX --end-block 0x$BLOCK_HEX --verbose"
+    CMD="./arc4keyfinder_unified --mode 1 --mi \"$MI_HEX\" --start-block 0x$BLOCK_HEX --end-block 0x$BLOCK_HEX --verbose"
     for ((i=0; i<3 && i<${#FRAMES[@]}; i++)); do
         CMD+=" --frame \"${FRAMES[i]}\""
     done
@@ -109,7 +113,7 @@ for TABLE in $TABLES; do
         LOG_FILE="$LOG_DIR/${KEY_HEX}_optimal_frames.log"
         
         # Build the command for all 18 frames
-        CMD="./arc4keyfinder_unified --mode 1 --mi \"$KEY_HEX\" --start-block 0x$BLOCK_HEX --end-block 0x$BLOCK_HEX --optimal-frames --verbose"
+        CMD="./arc4keyfinder_unified --mode 1 --mi \"$MI_HEX\" --start-block 0x$BLOCK_HEX --end-block 0x$BLOCK_HEX --optimal-frames --verbose"
         for FRAME in "${FRAMES[@]}"; do
             CMD+=" --frame \"$FRAME\""
         done

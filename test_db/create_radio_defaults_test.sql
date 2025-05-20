@@ -1,25 +1,28 @@
 -- SQL script to create a test database with DMR radio default keys
 -- This simulates encrypted frames from multiple DMR radios with default keys
+-- Using realistic Message Indicator (MI) values that differ from the keys
 
 DROP TABLE IF EXISTS radio_defaults_info;
 CREATE TABLE radio_defaults_info (
     id INTEGER PRIMARY KEY,
     key_hex TEXT,
     key_block INTEGER,
+    mi_hex TEXT,
     radio_type TEXT,
     description TEXT
 );
 
 -- Insert information about various radio default keys
-INSERT INTO radio_defaults_info (key_hex, key_block, radio_type, description) VALUES
-    ('00000001', 1, 'Motorola/Generic', 'DMR Channel 1 default key'),
-    ('00000005', 5, 'Motorola/Generic', 'DMR Channel 5 default key'),
-    ('0000000A', 10, 'Motorola/Generic', 'DMR Channel 10 default key'),
-    ('00000010', 16, 'Motorola/Generic', 'DMR Channel 16 default key'),
-    ('0000001F', 31, 'Motorola/Generic', 'DMR Channel 31 default key'),
-    ('00000032', 50, 'Motorola/Generic', 'DMR Channel 50 default key'),
-    ('00000042', 66, 'Motorola XPR', 'XPR Series Channel 66 default key'),
-    ('00000064', 100, 'Motorola/Generic', 'DMR Channel 100 default key');
+-- Using realistic MI values (different from keys)
+INSERT INTO radio_defaults_info (key_hex, key_block, mi_hex, radio_type, description) VALUES
+    ('00000001', 1, '12AB34CD', 'Motorola/Generic', 'DMR Channel 1 default key'),
+    ('00000005', 5, '98765432', 'Motorola/Generic', 'DMR Channel 5 default key'),
+    ('0000000A', 10, 'A1B2C3D4', 'Motorola/Generic', 'DMR Channel 10 default key'),
+    ('00000010', 16, 'FFDDEE22', 'Motorola/Generic', 'DMR Channel 16 default key'),
+    ('0000001F', 31, '87654321', 'Motorola/Generic', 'DMR Channel 31 default key'),
+    ('00000032', 50, 'ABCDEF12', 'Motorola/Generic', 'DMR Channel 50 default key'),
+    ('00000042', 66, '55AABB33', 'Motorola XPR', 'XPR Series Channel 66 default key'),
+    ('00000064', 100, '99887766', 'Motorola/Generic', 'DMR Channel 100 default key');
 
 -- Create tables for each key with frames encrypted by that key
 -- Each key gets its own table with the naming pattern C_[KEY_HEX]_S0

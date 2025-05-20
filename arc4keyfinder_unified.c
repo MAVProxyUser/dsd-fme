@@ -81,6 +81,8 @@ void generate_test_data(char mode, unsigned char *test_data, int key_size);
 void signal_handler(int signum);
 bool is_block_in_array(int block, const int *array, int array_size);
 int process_block_sequential(unsigned char *test_data, char *mi, int block, uint32_t *found_key);
+void print_progress_bar(double percentage, int width);
+void format_time(double seconds, char *buffer, size_t buffer_size);
 
 typedef struct {
     unsigned char *test_data;
@@ -782,20 +784,64 @@ int main(int argc, char **argv) {
     time_t end_time = time(NULL);
     double total_seconds = difftime(end_time, start_time);
     
-    // Final summary
+    // Format time for summary
+    char elapsed_time_str[30];
+    format_time(total_seconds, elapsed_time_str, sizeof(elapsed_time_str));
+    
+    // Final summary with enhanced statistics
     printf("\n==========================================\n");
-    printf("Search completed in %.1f seconds\n", total_seconds);
-    printf("Total keys tested: %llu\n", (unsigned long long)keys_tested);
+    printf("SEARCH SUMMARY\n");
+    printf("==========================================\n");
+    printf("Search completed in %s (%.1f seconds)\n", elapsed_time_str, total_seconds);
+    printf("Total keys tested: %llu (%.4f%% of keyspace)\n", 
+           (unsigned long long)keys_tested, 
+           (double)keys_tested / (256.0 * 0x1000000) * 100.0);
+    
+    // Calculate average search speed
+    double avg_speed = total_seconds > 0 ? keys_tested / total_seconds : 0;
+    printf("Average speed: %.2f million keys/second\n", avg_speed / 1000000.0);
+    
+    // Calculate time to search full keyspace at current rate
+    if (avg_speed > 0) {
+        double full_search_seconds = (256.0 * 0x1000000) / avg_speed;
+        char full_search_time[40];
+        
+        // Format differently based on search time length
+        if (full_search_seconds > 86400 * 365) { // More than a year
+            double years = full_search_seconds / (86400 * 365);
+            sprintf(full_search_time, "%.1f years", years);
+        } else if (full_search_seconds > 86400) { // More than a day
+            double days = full_search_seconds / 86400;
+            sprintf(full_search_time, "%.1f days", days);
+        } else {
+            format_time(full_search_seconds, full_search_time, sizeof(full_search_time));
+        }
+        
+        printf("Estimated time for full keyspace search: %s\n", full_search_time);
+    }
+    
+    // Print system information
+    printf("Processor cores used: %d\n", num_threads);
+    printf("GPU acceleration: %s\n", use_gpu && !force_cpu ? "Enabled" : "Disabled");
+    
+    // Display search mode options
+    printf("Search mode: DMR Mode %c\n", mode);
+    if (radio_defaults) printf("Radio defaults optimization: Enabled\n");
+    if (optimal_frames) printf("Optimal frames optimization: Enabled\n");
+    if (skip_blocks) printf("Block skipping optimization: Enabled\n");
     
     if (key_found) {
         // Get key from one of the threads that found it
-        printf("\nSUCCESS! KEY FOUND: 0x%08X\n", found_key);
+        printf("\n==========================================\n");
+        printf("SUCCESS! KEY FOUND: 0x%08X\n", found_key);
         printf("Key bytes: %02X %02X %02X %02X\n",
                (found_key >> 24) & 0xFF,
                (found_key >> 16) & 0xFF,
                (found_key >> 8) & 0xFF,
                found_key & 0xFF);
         printf("Block byte (last byte): %02X\n", found_key & 0xFF);
+        printf("MI: %s\n", mi);
+        printf("==========================================\n");
         
         // Write key to file
         FILE *key_file = fopen("/home/ubuntu/dsd-fme/arc4keyfinder/keys_found.txt", "a");
@@ -814,7 +860,9 @@ int main(int argc, char **argv) {
             fclose(key_file);
         }
     } else {
-        printf("\nNo key found in the specified range.\n");
+        printf("\n==========================================\n");
+        printf("No key found in the specified range.\n");
+        printf("==========================================\n");
     }
     
     // Clean up
@@ -853,14 +901,46 @@ int rc4_ksa_step(unsigned char *i, unsigned char *j, unsigned char *s_box) {
     return s_box[(unsigned char)(s_box[index_i] + s_box[index_j])];
 }
 
+// Print a progress bar
+void print_progress_bar(double percentage, int width) {
+    int filled_width = (int)(percentage * width / 100.0);
+    printf("[");
+    for (int i = 0; i < width; i++) {
+        if (i < filled_width) printf("#");
+        else printf(" ");
+    }
+    printf("] %.1f%%", percentage);
+}
+
+// Format time in a human-readable way (HH:MM:SS)
+void format_time(double seconds, char *buffer, size_t buffer_size) {
+    int hours = (int)(seconds / 3600);
+    int minutes = (int)((seconds - hours * 3600) / 60);
+    int secs = (int)(seconds - hours * 3600 - minutes * 60);
+    
+    if (hours > 0) {
+        snprintf(buffer, buffer_size, "%02d:%02d:%02d", hours, minutes, secs);
+    } else {
+        snprintf(buffer, buffer_size, "%02d:%02d", minutes, secs);
+    }
+}
+
 // Thread that shows statistics
 void *stats_thread(void *arg) {
     uint64_t prev_keys = 0;
     time_t start_time = time(NULL);
     time_t total_start_time = start_time;
+    time_t last_refresh = start_time;
+    uint64_t total_keyspace = 256ULL * 0x1000000; // All possible keys (2^32)
+    
+    // For ETA calculation
+    const int history_size = 5;  // Keep track of last 5 speeds
+    double speed_history[5] = {0, 0, 0, 0, 0};  // Fixed size array with initialization
+    int history_index = 0;
+    double avg_speed = 0;
     
     while (!stop_search) {
-        sleep(5); // Update every 5 seconds
+        sleep(2); // Update every 2 seconds
         
         pthread_mutex_lock(&keys_mutex);
         uint64_t current_keys = keys_tested;
@@ -872,32 +952,75 @@ void *stats_thread(void *arg) {
         double seconds = difftime(current_time, start_time);
         double total_seconds = difftime(current_time, total_start_time);
         
-        if (seconds > 0 && keys_in_period > 0) {
+        if (seconds > 0 && current_time > last_refresh + 1) { // Refresh at most once per second
             double keys_per_second = (double)keys_in_period / seconds;
             double total_keys_per_second = (double)current_keys / total_seconds;
             
-            printf("Keys tested: %llu (%.2f%% of 2^32), ", 
-                   (unsigned long long)current_keys,
-                   (double)current_keys / (256.0 * 0x1000000) * 100.0);
-                   
-            printf("Speed: %.1f keys/sec (period), %.1f keys/sec (avg)\n", 
-                   keys_per_second, total_keys_per_second);
+            // Update speed history for more stable ETA
+            speed_history[history_index] = keys_per_second;
+            history_index = (history_index + 1) % history_size;
             
-            // Log to file if specified
+            // Calculate average speed (excluding zero entries)
+            int non_zero_entries = 0;
+            double sum = 0;
+            for (int i = 0; i < history_size; i++) {
+                if (speed_history[i] > 0) {
+                    sum += speed_history[i];
+                    non_zero_entries++;
+                }
+            }
+            avg_speed = non_zero_entries > 0 ? sum / non_zero_entries : keys_per_second;
+            
+            // Calculate percentage and ETA
+            double percentage = (double)current_keys / total_keyspace * 100.0;
+            double remaining_keys = total_keyspace - current_keys;
+            double eta_seconds = avg_speed > 0 ? remaining_keys / avg_speed : 0;
+            
+            // Format ETA time
+            char eta_str[20] = "calculating...";
+            if (avg_speed > 0 && percentage > 0.1) {
+                format_time(eta_seconds, eta_str, sizeof(eta_str));
+            }
+            
+            // Format time elapsed
+            char elapsed_str[20];
+            format_time(total_seconds, elapsed_str, sizeof(elapsed_str));
+            
+            // Clear previous line
+            printf("\r\033[K"); // \r to move cursor to line start, \033[K to clear to end of line
+            
+            // Print progress bar and stats
+            print_progress_bar(percentage, 30);
+            printf(" | Keys: %llu | %.1f M keys/s | Elapsed: %s | ETA: %s", 
+                   (unsigned long long)current_keys,
+                   avg_speed / 1000000.0,
+                   elapsed_str,
+                   eta_str);
+            
+            // Flush to ensure immediate display
+            fflush(stdout);
+            
+            // Log to file if specified (no newline in console output)
             if (log_file) {
-                fprintf(log_file, "%ld,%llu,%.1f,%.1f\n", 
+                fprintf(log_file, "%ld,%llu,%.1f,%.1f,%.1f,%s\n", 
                         (long)current_time, 
                         (unsigned long long)current_keys,
                         keys_per_second,
-                        total_keys_per_second);
+                        total_keys_per_second,
+                        percentage,
+                        eta_str);
                 fflush(log_file);
             }
+            
+            last_refresh = current_time;
         }
         
         prev_keys = current_keys;
         start_time = current_time;
     }
     
+    // Print a newline at the end to avoid next output on same line
+    printf("\n");
     return NULL;
 }
 
@@ -1005,8 +1128,15 @@ void generate_test_data(char mode, unsigned char *test_data, int key_size) {
 int process_block_sequential(unsigned char *test_data, char *mi, int block, uint32_t *found_key) {
     time_t start_time = time(NULL);
     uint64_t local_keys_tested = 0;
+    time_t last_status_time = start_time;
     
     printf("Processing block: %02X, key range: 0x000000 - 0xFFFFFF\n", block);
+    
+    // For progress calculation
+    uint64_t total_keys_in_block = 0x1000000ULL; // 16,777,216 keys per block
+    
+    // For more accurate progress reporting
+    uint64_t progress_interval = 250000; // Update every ~250K keys
     
     // Current block testing loop
     for (uint32_t key_base = 0; key_base <= 0xFFFFFF; key_base++) {
@@ -1116,18 +1246,31 @@ int process_block_sequential(unsigned char *test_data, char *mi, int block, uint
             local_keys_tested = 0;
         }
         
-        // Periodically report status
-        if ((key_base % 10000000) == 0 && key_base > 0) {
+        // Provide more frequent block-specific progress updates
+        // This is separate from the global stats thread
+        if (key_base % progress_interval == 0 && verbose_mode) {
             time_t current_time = time(NULL);
-            double seconds = difftime(current_time, start_time);
-            
-            if (seconds > 0) {
-                printf("CPU: %.1f%% complete, %.0f keys/sec. Current key: %08X\n", 
-                       (double)(key_base) / 0x1000000 * 100.0,
-                       (double)10000000 / seconds, key);
+            // Only update if at least 0.5 second has passed since last update
+            if (difftime(current_time, last_status_time) >= 0.5) {
+                double percentage = (double)key_base / total_keys_in_block * 100.0;
+                double elapsed = difftime(current_time, start_time);
+                double keys_per_sec = key_base > 0 ? key_base / elapsed : 0;
+                double remaining = percentage > 0 ? (100.0 - percentage) * elapsed / percentage : 0;
                 
-                // Reset for next measurement
-                start_time = current_time;
+                // Format remaining time
+                char eta_str[20] = "calculating...";
+                if (keys_per_sec > 0 && percentage > 0.1) {
+                    format_time(remaining, eta_str, sizeof(eta_str));
+                }
+                
+                // Clear line and show progress for this specific block
+                printf("\r\033[K"); // Clear line
+                printf("Block 0x%02X: ", block);
+                print_progress_bar(percentage, 20);
+                printf(" | %.1f M keys/s | ETA: %s", keys_per_sec / 1000000.0, eta_str);
+                fflush(stdout);
+                
+                last_status_time = current_time;
             }
         }
     }
@@ -1139,7 +1282,9 @@ int process_block_sequential(unsigned char *test_data, char *mi, int block, uint
         pthread_mutex_unlock(&keys_mutex);
     }
     
-    printf("Finished block %02X search with CPU\n", block);
+    // Clear line before printing completion message
+    printf("\r\033[K");
+    printf("Finished block 0x%02X search with CPU (100%% complete)\n", block);
     return 1;
 }
 
@@ -1155,9 +1300,20 @@ void *brute_force_thread(void *arg) {
     char *mi = args->mi;
     
     time_t start_time = time(NULL);
+    time_t last_status_time = start_time;
     
     printf("Thread %d: Processing block: %02X, key range: 0x%06X - 0x%06X\n", 
            thread_id, block_to_test, start_key, end_key);
+    
+    // For progress calculation
+    uint64_t total_keys = (uint64_t)(end_key - start_key + 1);
+    
+    // For more accurate progress reporting
+    uint64_t progress_interval = 250000; // Update every ~250K keys
+    uint64_t keys_processed = 0;
+    
+    // Thread-specific mutex for console output (to avoid garbled output with multiple threads)
+    static pthread_mutex_t console_mutex = PTHREAD_MUTEX_INITIALIZER;
     
     // Current block testing loop
     for (uint32_t key_base = start_key; key_base <= end_key; key_base++) {
@@ -1229,6 +1385,8 @@ void *brute_force_thread(void *arg) {
                             keys_tested += local_keys_tested;
                             pthread_mutex_unlock(&keys_mutex);
                             
+                            // Use mutex to ensure clean console output
+                            pthread_mutex_lock(&console_mutex);
                             printf("\n========================================\n");
                             printf("Thread %d: KEY FOUND!\n", thread_id);
                             printf("Key: %08X\n", key);
@@ -1241,6 +1399,7 @@ void *brute_force_thread(void *arg) {
                             printf("MI: %s\n", mi);
                             printf("Time taken: %ld seconds\n", (long)(time(NULL) - start_time));
                             printf("========================================\n");
+                            pthread_mutex_unlock(&console_mutex);
                             
                             // Write key to file
                             FILE *key_file = fopen("/home/ubuntu/dsd-fme/arc4keyfinder/keys_found.txt", "a");
@@ -1273,6 +1432,9 @@ void *brute_force_thread(void *arg) {
                 break;
         }
         
+        // Count processed keys
+        keys_processed++;
+        
         // Update key counter (do this less frequently to reduce mutex contention)
         local_keys_tested++;
         if (local_keys_tested % 1000000 == 0) {
@@ -1284,19 +1446,38 @@ void *brute_force_thread(void *arg) {
             local_keys_tested = 0;
         }
         
-        // Periodically report status
-        if ((key_base % 10000000) == 0 && key_base > 0) {
+        // Provide more frequent progress updates if verbose mode is enabled
+        if (keys_processed % progress_interval == 0 && verbose_mode) {
             time_t current_time = time(NULL);
-            double seconds = difftime(current_time, start_time);
             
-            if (seconds > 0) {
-                printf("Thread %d: %.1f%% complete, %.0f keys/sec. Current key: %08X\n", 
-                       thread_id, 
-                       (double)(key_base - start_key) / (end_key - start_key + 1) * 100.0,
-                       (double)10000000 / seconds, key);
+            // Only update if at least 0.5 second has passed since last update
+            if (difftime(current_time, last_status_time) >= 0.5) {
+                double percentage = (double)keys_processed / total_keys * 100.0;
+                double elapsed = difftime(current_time, start_time);
+                double keys_per_sec = keys_processed > 0 ? keys_processed / elapsed : 0;
+                double remaining = percentage > 0 ? (100.0 - percentage) * elapsed / percentage : 0;
                 
-                // Reset for next measurement
-                start_time = current_time;
+                // Format remaining time
+                char eta_str[20] = "calculating...";
+                if (keys_per_sec > 0 && percentage > 0.1) {
+                    format_time(remaining, eta_str, sizeof(eta_str));
+                }
+                
+                // Use mutex to ensure clean console output
+                pthread_mutex_lock(&console_mutex);
+                
+                // Construct a thread-specific message
+                char message[256];
+                snprintf(message, sizeof(message), "Thread %d (Block 0x%02X): ", thread_id, block_to_test);
+                printf("\r\033[K%s", message); // Clear line and show thread ID
+                
+                // Show progress bar and stats
+                print_progress_bar(percentage, 15);
+                printf(" | %.1f M keys/s | ETA: %s", keys_per_sec / 1000000.0, eta_str);
+                fflush(stdout);
+                
+                pthread_mutex_unlock(&console_mutex);
+                last_status_time = current_time;
             }
         }
     }
@@ -1308,8 +1489,11 @@ void *brute_force_thread(void *arg) {
         pthread_mutex_unlock(&keys_mutex);
     }
     
-    printf("Thread %d: Finished block %02X search, keys tested: 0x%X - 0x%X\n", 
-           thread_id, block_to_test, start_key, end_key);
+    // Use mutex for clean output
+    pthread_mutex_lock(&console_mutex);
+    printf("\r\033[KThread %d: Finished block 0x%02X search (100%% complete)\n", 
+           thread_id, block_to_test);
+    pthread_mutex_unlock(&console_mutex);
     
     free(args);
     return NULL;
