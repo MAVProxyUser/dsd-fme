@@ -36,7 +36,7 @@ time ./arc4keyfinder_unified --mode 1 --frame "$FRAME1" --frame "$FRAME2" --fram
     --mi "$KEY_HEX" --start-block 0x10 --end-block 0x30 --verbose
 
 echo -e "\n====================================================="
-echo "DEMONSTRATING 18-FRAME SUPERFRAME OPTIMIZATION"
+echo "DEMONSTRATING 18 AMBE FRAMES OPTIMIZATION (3 SUPERFRAMES)"
 echo "====================================================="
 
 # Generate 18 frames for a full superframe
@@ -46,7 +46,7 @@ FRAME1="${TEST_BLOCK}05077400004000"
 FRAME2="ED2D4F7100006000"
 FRAME3="596AF1C800008000"
 
-echo -e "\nGenerating 18-frame superframe data..."
+echo -e "\nGenerating 18 AMBE frames data (spanning 3 superframes)..."
 FRAMES_18=(
     "$FRAME1" "$FRAME2" "$FRAME3"
     "A104B23100001000" "F392A45600002000" "C823D67800003000"

@@ -30,7 +30,7 @@ bool use_gpu = true;              // Use GPU if available
 bool force_cpu = false;           // Force CPU only
 bool skip_blocks = false;         // Skip some blocks
 bool radio_defaults = false;      // Use radio default key patterns
-bool optimal_frames = false;      // Optimize for 18-frame superframes
+bool optimal_frames = false;      // Optimize for 18 AMBE frames (3 superframes)
 uint32_t known_test_key = 0;      // Known test key
 uint64_t keys_tested = 0;         // Keys tested counter
 volatile bool key_found = false;  // Flag for found key
@@ -129,7 +129,7 @@ bool parse_cmd_args(int argc, char **argv, char *mode,
         {"cpu", no_argument, 0, 'c'},
         {"skip-blocks", no_argument, 0, 'S'},
         {"radio-defaults", no_argument, 0, 'R'},
-        {"optimal-frames", no_argument, 0, 'O'},
+        {"optimal-frames", no_argument, 0, 'O'},  // Use 18 AMBE frames (3 superframes)
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}
     };
@@ -286,8 +286,8 @@ void print_usage(const char *progname) {
     printf("    last byte matches the channel number.\n");
     printf("Optimal Frame Strategy:\n");
     printf("    When --optimal-frames is enabled, the program will optimize verification\n");
-    printf("    for 18-frame superframes when available. This provides more keystream\n");
-    printf("    data for verification and reduces false positives.\n");
+    printf("    for 18 AMBE frames (spanning 3 DMR superframes) when available. This provides\n");
+    printf("    more keystream data for verification and reduces false positives.\n");
     printf("Example:\n");
     printf("    %s -m 1 -f 7805077400004000 -f ED2D4F7100006000 -f 596AF1C800008000 -i ABCDEF12 -s 78 -e 78\n", progname);
 }
@@ -359,8 +359,8 @@ int main(int argc, char **argv) {
     
     // Process encrypted frames to extract keystream
     if (optimal_frames && num_frames >= 18) {
-        // In optimal frame mode, we use up to 18 frames from a superframe
-        printf("\n[OPTIMAL FRAMES MODE] Using full 18-frame superframe\n");
+        // In optimal frame mode, we use up to 18 AMBE frames (spanning 3 superframes)
+        printf("\n[OPTIMAL FRAMES MODE] Using all 18 AMBE frames (3 superframes)\n");
         printf("Processing first 3 frames for standard approach, with additional verification\n");
         
         // Always process the first 3 frames for standard approach
