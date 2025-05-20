@@ -1,0 +1,61 @@
+# Main Makefile for all DMR RC4 Key Finder implementations
+
+# Variables
+CUDA_PATH = /usr/local/cuda-11.4
+
+# Targets
+CPU_TARGET = arc4keyfinder_multicore
+CUDA_TARGET = arc4keyfinder_cuda
+UNIFIED_TARGET = arc4keyfinder_unified
+
+.PHONY: all cpu gpu unified clean clean_cpu clean_gpu clean_unified
+
+# Default target builds all implementations
+all: cpu gpu unified
+
+# Build CPU-only implementation
+cpu:
+	$(MAKE) -f Makefile.cuda $(CPU_TARGET)
+
+# Build GPU-only implementation
+gpu:
+	$(MAKE) -f Makefile.cuda $(CUDA_TARGET)
+
+# Build unified CPU+GPU implementation
+unified:
+	$(MAKE) -f Makefile.unified
+
+# Clean all implementations
+clean: clean_cpu clean_gpu clean_unified
+
+# Clean individual implementations
+clean_cpu:
+	$(MAKE) -f Makefile.cuda clean_cpu
+
+clean_gpu:
+	$(MAKE) -f Makefile.cuda clean_gpu
+
+clean_unified:
+	$(MAKE) -f Makefile.unified clean
+
+# Installation target
+install: all
+	cp $(CPU_TARGET) $(CUDA_TARGET) $(UNIFIED_TARGET) /usr/local/bin/
+	@echo "All implementations installed to /usr/local/bin/"
+	@echo ""
+	@echo "Usage:"
+	@echo "  $(CPU_TARGET) - CPU-only implementation"
+	@echo "  $(CUDA_TARGET) - GPU-only implementation"
+	@echo "  $(UNIFIED_TARGET) - Unified CPU+GPU implementation"
+	@echo ""
+	@echo "All implementations accept the same command-line arguments:"
+	@echo "  --mode/-m <mode>           - DMR mode (1-5, default: 1)"
+	@echo "  --frame/-f <hex>           - AMBE frame in hex format"
+	@echo "  --mi/-i <hex>              - DMR message indicator in hex"
+	@echo "  --start-block/-s <byte>    - Start block (0-255, default: 0)"
+	@echo "  --end-block/-e <byte>      - End block (0-255, default: 255)"
+	@echo "  --threads/-t <num>         - Number of threads (CPU, default: cores)"
+	@echo "  --debug/-d                 - Enable debug output"
+	@echo "  --verbose/-v               - Enable verbose output"
+	@echo "  --test/-T                  - Use test data"
+	@echo "  --key/-k <key>             - Known key for testing"

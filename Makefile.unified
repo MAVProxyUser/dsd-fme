@@ -1,0 +1,50 @@
+# Makefile for Unified RC4 Key Finder (CPU+GPU)
+
+# Compiler options
+NVCC = /usr/local/cuda-11.4/bin/nvcc
+CXX = g++
+CC = gcc
+CFLAGS = -O3
+CXXFLAGS = -O3 -std=c++11
+
+# CUDA settings
+CUDA_PATH = /usr/local/cuda-11.4
+CUDA_INC = -I$(CUDA_PATH)/include
+CUDA_LIB = -L$(CUDA_PATH)/lib64 -lcudart
+CUDA_FLAGS = -arch=sm_53 # Targeting compute capability 5.3 for Tegra
+
+# Source files
+UNIFIED_C_SRC = arc4keyfinder_unified.c
+UNIFIED_CUDA_SRC = arc4keyfinder_unified_cuda.cu
+CUDA_WRAPPER_SRC = arc4keyfinder_cuda_wrapper.cpp
+
+# Output executables
+UNIFIED_TARGET = arc4keyfinder_unified
+
+# Object files
+UNIFIED_C_OBJ = arc4keyfinder_unified.o
+CUDA_OBJ = arc4keyfinder_unified_cuda.o
+CUDA_WRAPPER_OBJ = arc4keyfinder_cuda_wrapper.o
+
+all: $(UNIFIED_TARGET)
+
+# Compile C part
+$(UNIFIED_C_OBJ): $(UNIFIED_C_SRC)
+	$(CC) $(CFLAGS) -c -o $@ $< $(CUDA_INC)
+
+# Compile CUDA part
+$(CUDA_OBJ): $(UNIFIED_CUDA_SRC)
+	$(NVCC) $(CUDA_FLAGS) $(CUDA_INC) -c -o $@ $<
+
+# Compile C++ wrapper
+$(CUDA_WRAPPER_OBJ): $(CUDA_WRAPPER_SRC)
+	$(CXX) $(CXXFLAGS) $(CUDA_INC) -c -o $@ $<
+
+# Link everything
+$(UNIFIED_TARGET): $(UNIFIED_C_OBJ) $(CUDA_OBJ) $(CUDA_WRAPPER_OBJ)
+	$(CXX) -o $@ $^ $(CUDA_LIB) -pthread
+
+clean:
+	rm -f $(UNIFIED_TARGET) $(UNIFIED_C_OBJ) $(CUDA_OBJ) $(CUDA_WRAPPER_OBJ)
+
+.PHONY: all clean

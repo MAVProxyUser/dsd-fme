@@ -1,0 +1,43 @@
+# Makefile for CUDA-accelerated RC4 key finder
+
+# Compiler options
+NVCC = /usr/local/cuda-11.4/bin/nvcc
+CXX = g++
+CFLAGS = -O3 -std=c++11
+
+# CUDA settings
+CUDA_PATH = /usr/local/cuda-11.4
+CUDA_INC = -I$(CUDA_PATH)/include
+CUDA_LIB = -L$(CUDA_PATH)/lib64 -lcudart
+CUDA_FLAGS = -arch=sm_53 # Targeting compute capability 5.3 for Tegra
+
+# Source files
+CUDA_SRC = arc4keyfinder_cuda.cu
+CPU_SRC = arc4keyfinder_multicore.c
+
+# Output executables
+CUDA_TARGET = arc4keyfinder_cuda
+CPU_TARGET = arc4keyfinder_multicore
+
+all: $(CUDA_TARGET) $(CPU_TARGET)
+
+$(CUDA_TARGET): $(CUDA_SRC)
+	$(NVCC) $(CFLAGS) $(CUDA_FLAGS) $(CUDA_INC) -o $@ $< $(CUDA_LIB)
+
+$(CPU_TARGET): $(CPU_SRC)
+	$(CXX) $(CFLAGS) -pthread -o $@ $<
+
+# Individual targets
+cuda: $(CUDA_TARGET)
+cpu: $(CPU_TARGET)
+
+# Individual clean targets
+clean_cpu:
+	rm -f $(CPU_TARGET)
+
+clean_gpu:
+	rm -f $(CUDA_TARGET)
+
+clean: clean_cpu clean_gpu
+
+.PHONY: all clean clean_cpu clean_gpu cpu cuda
