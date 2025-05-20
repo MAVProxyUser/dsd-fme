@@ -46,22 +46,70 @@ Testing confirmed that the key finder works correctly when given properly encryp
 
 ## Example Test Data
 
-For verification purposes, here is test data for key `0x00000001` with MI `12AB34CD`:
+For verification purposes, here are several test cases with keys of increasing complexity:
+
+### Test 1: Simple Key (0x00000001)
 
 ```
-Plaintext pattern: AA BB CC DD EE FF 11 22 33 44 55 66
+Key: 0x00000001 with MI: 12AB34CD
 Keystream: 5A 0D C5 1A 25 A2 82 B4 3F 44 09 B7
 Encrypted frames:
   Frame 1: F0B609C7
   Frame 2: CB5D9396
   Frame 3: 0C005CD1
-```
 
-Command line to test:
-```
+Command line:
 ./arc4keyfinder_unified --mode 1 --mi "12AB34CD" \
   --frame "F0B609C7" --frame "CB5D9396" --frame "0C005CD1" \
   --start-block 0x01 --end-block 0x01 --verbose
+```
+
+### Test 2: Realistic Key (0x1A2B3C78)
+
+```
+Key: 0x1A2B3C78 with MI: 98765432
+Keystream: 88 9A 85 90 F9 F2 B2 1B 17 75 42 65
+Encrypted frames:
+  Frame 1: 2221494D
+  Frame 2: 170DA339
+  Frame 3: 24311703
+
+Command line:
+./arc4keyfinder_unified --mode 1 --mi "98765432" \
+  --frame "2221494D" --frame "170DA339" --frame "24311703" \
+  --start-block 0x78 --end-block 0x78 --verbose
+```
+
+### Test 3: Complex Key (0xBDFE45AA)
+
+```
+Key: 0xBDFE45AA with MI: FEDCBA09
+Keystream: 2C 79 CB C8 3A 09 8A DF 12 8A DD 56
+Encrypted frames:
+  Frame 1: 86C20715
+  Frame 2: D4F69BFD
+  Frame 3: 21CE8830
+
+Command line:
+./arc4keyfinder_unified --mode 1 --mi "FEDCBA09" \
+  --frame "86C20715" --frame "D4F69BFD" --frame "21CE8830" \
+  --start-block 0xAA --end-block 0xAA --verbose
+```
+
+### Test 4: Radio Default Key (0x76CD3242)
+
+```
+Key: 0x76CD3242 with MI: 12345678
+Keystream: 44 A0 A0 49 BE A3 A4 24 04 2B 9B 45
+Encrypted frames:
+  Frame 1: EE1B6C94
+  Frame 2: 505CB506
+  Frame 3: 376FCE23
+
+Command line:
+./arc4keyfinder_unified --mode 1 --mi "12345678" \
+  --frame "EE1B6C94" --frame "505CB506" --frame "376FCE23" \
+  --start-block 0x42 --end-block 0x42 --verbose
 ```
 
 ## Further Improvements
