@@ -19,6 +19,17 @@ static uint32_t byte_swap_32(uint32_t x) {
            ((x & 0xFF000000) >> 24);
 }
 
+// Struct definition for thread arguments
+typedef struct {
+    unsigned char *test_data;
+    int thread_id;
+    uint32_t start_key;
+    uint32_t end_key;
+    int block_to_test;
+    uint64_t keys_tested_local;
+    char *mi;
+} thread_args;
+
 // Global variables
 pthread_mutex_t keys_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t progress_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -34,14 +45,24 @@ bool optimal_frames = false;      // Optimize for 18 AMBE frames (3 superframes)
 uint32_t known_test_key = 0;      // Known test key
 uint64_t keys_tested = 0;         // Keys tested counter
 volatile bool key_found = false;  // Flag for found key
+uint32_t found_key = 0;           // Found key value (global for threads)
 volatile bool stop_search = false;// Flag to stop search
 pthread_t *thread_ids = NULL;     // Thread IDs
 int num_threads = 0;              // Number of threads
 FILE *log_file = NULL;            // Log file
 
 // External CUDA functions (to be linked in at compile time)
-extern bool check_gpu_available();
-extern int run_gpu_search(unsigned char *test_data, char *mi, int block, uint32_t *found_key);
+extern bool cuda_check_gpu_available();
+extern int cuda_run_gpu_search(unsigned char *test_data, char *mi, int block, uint32_t *found_key);
+
+// Wrapper functions to match our naming convention
+bool check_gpu_available() {
+    return cuda_check_gpu_available();
+}
+
+int run_gpu_search(unsigned char *test_data, char *mi, int block, uint32_t *found_key) {
+    return cuda_run_gpu_search(test_data, mi, block, found_key);
+}
 
 // Known block patterns that are commonly used
 const int KNOWN_BLOCKS[] = {0x78, 0x32, 0xDD, 0xAA, 0xBB, 0xCC, 0x00, 0xFF};
@@ -75,6 +96,7 @@ void print_usage(const char *progname);
 void convert_hex_to_binary(const char *src, unsigned char *dst, int len);
 int rc4_ksa_step(unsigned char *i, unsigned char *j, unsigned char *s_box);
 void *brute_force_thread(void *arg);
+void *gpu_search_thread(void *arg);
 void *stats_thread(void *arg);
 void print_array(const unsigned char *data, int len, const char *label);
 void generate_test_data(char mode, unsigned char *test_data, int key_size);
@@ -84,15 +106,27 @@ int process_block_sequential(unsigned char *test_data, char *mi, int block, uint
 void print_progress_bar(double percentage, int width);
 void format_time(double seconds, char *buffer, size_t buffer_size);
 
-typedef struct {
-    unsigned char *test_data;
-    int thread_id;
-    uint32_t start_key;
-    uint32_t end_key;
-    int block_to_test;
-    uint64_t keys_tested_local;
-    char *mi;
-} thread_args;
+// GPU search thread function
+void *gpu_search_thread(void *arg) {
+    thread_args *args = (thread_args *)arg;
+    uint32_t found_key_local = 0;
+    
+    printf("GPU thread running for block 0x%02X...\n", args->block_to_test);
+    if (run_gpu_search(args->test_data, args->mi, args->block_to_test, &found_key_local) == 0) {
+        // Found key with GPU!
+        pthread_mutex_lock(&keys_mutex);
+        if (!key_found) { // Only set if not already found
+            key_found = true;
+            found_key = found_key_local;
+            printf("GPU found the key: 0x%08X\n", found_key_local);
+        }
+        pthread_mutex_unlock(&keys_mutex);
+    }
+    
+    free(args);
+    return NULL;
+}
+
 
 // Signal handler
 void signal_handler(int signum) {
@@ -436,15 +470,64 @@ int main(int argc, char **argv) {
         
         // Try this block first if it's in range of typical radio defaults (1-100 decimal)
         if (first_frame_block > 0x00 && first_frame_block <= 0x64) {
-            printf("Trying potential radio default key with block 0x%02X...\n", first_frame_block);
-            uint32_t found_key = 0;
-            int result;
+            printf("Trying potential radio default key with block 0x%02X in parallel...\n", first_frame_block);
             
-            // Try with GPU first if available
-            if (use_gpu && !force_cpu && check_gpu_available()) {
-                result = run_gpu_search(test_data, mi, first_frame_block, &found_key);
-                if (result == 0) {
-                    printf("\nSUCCESS! KEY FOUND: 0x%08X\n", found_key);
+            // Define variables for parallel execution
+            pthread_t cpu_thread;
+            bool cpu_thread_started = false;
+            bool gpu_available_local = use_gpu && !force_cpu && check_gpu_available();
+            
+            // Start CPU search in a separate thread
+            thread_args *cpu_args = (thread_args *)malloc(sizeof(thread_args));
+            if (cpu_args) {
+                cpu_args->test_data = test_data;
+                cpu_args->thread_id = 0;
+                cpu_args->start_key = 0;
+                cpu_args->end_key = 0xFFFFFF;
+                cpu_args->block_to_test = first_frame_block;
+                cpu_args->keys_tested_local = 0;
+                cpu_args->mi = mi;
+                
+                printf("Starting CPU search for radio default block 0x%02X...\n", first_frame_block);
+                if (pthread_create(&cpu_thread, NULL, brute_force_thread, cpu_args) != 0) {
+                    fprintf(stderr, "Error: Could not create CPU thread\n");
+                    free(cpu_args);
+                } else {
+                    cpu_thread_started = true;
+                }
+            }
+            
+            // Start GPU search in main thread if available
+            if (gpu_available_local) {
+                printf("Starting GPU search for radio default block 0x%02X...\n", first_frame_block);
+                if (run_gpu_search(test_data, mi, first_frame_block, &found_key) == 0) {
+                    // GPU found the key
+                    key_found = true;
+                    printf("\nSUCCESS! KEY FOUND with GPU: 0x%08X\n", found_key);
+                    printf("Key bytes: %02X %02X %02X %02X\n",
+                          (found_key >> 24) & 0xFF,
+                          (found_key >> 16) & 0xFF,
+                          (found_key >> 8) & 0xFF,
+                          found_key & 0xFF);
+                    printf("Block byte (last byte): %02X\n", found_key & 0xFF);
+                    
+                    // Wait for CPU thread to avoid memory leaks
+                    if (cpu_thread_started) {
+                        pthread_cancel(cpu_thread);
+                        pthread_join(cpu_thread, NULL);
+                    }
+                    
+                    return 0;
+                }
+            }
+            
+            // Wait for CPU thread to complete
+            if (cpu_thread_started) {
+                pthread_join(cpu_thread, NULL);
+                
+                // Check if CPU found the key
+                if (key_found) {
+                    printf("\nSUCCESS! KEY FOUND with CPU: 0x%08X\n", found_key);
                     printf("Key bytes: %02X %02X %02X %02X\n",
                           (found_key >> 24) & 0xFF,
                           (found_key >> 16) & 0xFF,
@@ -453,51 +536,130 @@ int main(int argc, char **argv) {
                     printf("Block byte (last byte): %02X\n", found_key & 0xFF);
                     return 0;
                 }
-            }
-            
-            // Try with CPU if GPU failed or not available
-            result = process_block_sequential(test_data, mi, first_frame_block, &found_key);
-            if (result == 0) {
-                printf("\nSUCCESS! KEY FOUND: 0x%08X\n", found_key);
-                printf("Key bytes: %02X %02X %02X %02X\n",
-                      (found_key >> 24) & 0xFF,
-                      (found_key >> 16) & 0xFF,
-                      (found_key >> 8) & 0xFF,
-                      found_key & 0xFF);
-                printf("Block byte (last byte): %02X\n", found_key & 0xFF);
-                return 0;
             }
         }
         
-        // If the quick check didn't work, try all radio default blocks
-        printf("\n[RADIO DEFAULTS] Checking all common radio default keys\n");
+        // If the quick check didn't work, try all radio default blocks in parallel
+        printf("\n[RADIO DEFAULTS] Checking all common radio default keys in parallel\n");
         printf("==========================================\n");
         
+        // Count the number of blocks to process
+        int num_blocks_to_check = 0;
         for (int i = 0; i < RADIO_DEFAULT_BLOCKS_COUNT; i++) {
             int block = RADIO_DEFAULT_BLOCKS[i];
-            if (block >= start_block && block <= end_block) {
-                printf("Testing radio default key block 0x%02X...\n", block);
-                uint32_t found_key = 0;
-                int result;
-                
-                // Try with GPU first if available
-                if (use_gpu && !force_cpu && check_gpu_available()) {
-                    result = run_gpu_search(test_data, mi, block, &found_key);
-                    if (result == 0) {
-                        printf("\nSUCCESS! KEY FOUND: 0x%08X\n", found_key);
-                        printf("Key bytes: %02X %02X %02X %02X\n",
-                              (found_key >> 24) & 0xFF,
-                              (found_key >> 16) & 0xFF,
-                              (found_key >> 8) & 0xFF,
-                              found_key & 0xFF);
-                        printf("Block byte (last byte): %02X\n", found_key & 0xFF);
-                        return 0;
+            if (block >= start_block && block <= end_block && block != first_frame_block) {
+                num_blocks_to_check++;
+            }
+        }
+        
+        if (num_blocks_to_check > 0) {
+            printf("Found %d radio default blocks to check in parallel\n", num_blocks_to_check);
+            
+            // Determine parallel strategy
+            int max_cpu_threads = num_threads;
+            bool gpu_available_local = use_gpu && !force_cpu && check_gpu_available();
+            int num_gpu_threads = gpu_available_local ? (num_blocks_to_check / 2) : 0; // Use GPU for half the blocks
+            int num_cpu_threads = num_blocks_to_check - num_gpu_threads;
+            
+            // Make sure we don't exceed max CPU threads
+            if (num_cpu_threads > max_cpu_threads) {
+                num_cpu_threads = max_cpu_threads;
+            }
+            
+            printf("Using %d CPU threads and %d GPU threads\n", num_cpu_threads, num_gpu_threads);
+            
+            // Allocate thread IDs
+            pthread_t *thread_ids = (pthread_t *)malloc(num_blocks_to_check * sizeof(pthread_t));
+            if (!thread_ids) {
+                fprintf(stderr, "Error: Could not allocate memory for thread IDs\n");
+                return 1;
+            }
+            
+            // Create arrays to track blocks for CPU and GPU
+            int *cpu_blocks = (int *)malloc(num_cpu_threads * sizeof(int));
+            int *gpu_blocks = (int *)malloc(num_gpu_threads * sizeof(int));
+            
+            if (!cpu_blocks || !gpu_blocks) {
+                fprintf(stderr, "Error: Could not allocate memory for block arrays\n");
+                free(thread_ids);
+                if (cpu_blocks) free(cpu_blocks);
+                if (gpu_blocks) free(gpu_blocks);
+                return 1;
+            }
+            
+            // Fill CPU and GPU block arrays
+            int cpu_idx = 0;
+            int gpu_idx = 0;
+            for (int i = 0; i < RADIO_DEFAULT_BLOCKS_COUNT; i++) {
+                int block = RADIO_DEFAULT_BLOCKS[i];
+                if (block >= start_block && block <= end_block && block != first_frame_block) {
+                    if (gpu_idx < num_gpu_threads) {
+                        gpu_blocks[gpu_idx++] = block;
+                    } else if (cpu_idx < num_cpu_threads) {
+                        cpu_blocks[cpu_idx++] = block;
                     }
                 }
+            }
+            
+            // Start GPU threads
+            for (int i = 0; i < gpu_idx && !key_found && !stop_search; i++) {
+                int block = gpu_blocks[i];
                 
-                // Try with CPU if GPU failed or not available
-                result = process_block_sequential(test_data, mi, block, &found_key);
-                if (result == 0) {
+                thread_args *args = (thread_args *)malloc(sizeof(thread_args));
+                if (!args) {
+                    fprintf(stderr, "Error: Could not allocate memory for GPU thread args\n");
+                    continue;
+                }
+                
+                args->test_data = test_data;
+                args->thread_id = -i-1;  // Negative IDs for GPU threads
+                args->start_key = 0;
+                args->end_key = 0;
+                args->block_to_test = block;
+                args->keys_tested_local = 0;
+                args->mi = mi;
+                
+                printf("Starting GPU thread for block 0x%02X...\n", block);
+                
+                // Create GPU thread using the gpu_search_thread function
+                if (pthread_create(&thread_ids[i], NULL, gpu_search_thread, args) != 0) {
+                    fprintf(stderr, "Error: Could not create GPU thread for block 0x%02X\n", block);
+                    free(args);
+                }
+            }
+            
+            // Start CPU threads
+            for (int i = 0; i < cpu_idx && !key_found && !stop_search; i++) {
+                int block = cpu_blocks[i];
+                
+                thread_args *args = (thread_args *)malloc(sizeof(thread_args));
+                if (!args) {
+                    fprintf(stderr, "Error: Could not allocate memory for CPU thread args\n");
+                    continue;
+                }
+                
+                args->test_data = test_data;
+                args->thread_id = i;
+                args->start_key = 0;
+                args->end_key = 0xFFFFFF;
+                args->block_to_test = block;
+                args->keys_tested_local = 0;
+                args->mi = mi;
+                
+                printf("Starting CPU thread %d for block 0x%02X...\n", i, block);
+                
+                if (pthread_create(&thread_ids[gpu_idx + i], NULL, brute_force_thread, args) != 0) {
+                    fprintf(stderr, "Error: Could not create CPU thread for block 0x%02X\n", block);
+                    free(args);
+                }
+            }
+            
+            // Wait for all threads to complete
+            for (int i = 0; i < num_blocks_to_check; i++) {
+                pthread_join(thread_ids[i], NULL);
+                
+                // If key found, exit early
+                if (key_found) {
                     printf("\nSUCCESS! KEY FOUND: 0x%08X\n", found_key);
                     printf("Key bytes: %02X %02X %02X %02X\n",
                           (found_key >> 24) & 0xFF,
@@ -505,9 +667,20 @@ int main(int argc, char **argv) {
                           (found_key >> 8) & 0xFF,
                           found_key & 0xFF);
                     printf("Block byte (last byte): %02X\n", found_key & 0xFF);
+                    
+                    // Clean up
+                    free(thread_ids);
+                    free(cpu_blocks);
+                    free(gpu_blocks);
+                    
                     return 0;
                 }
             }
+            
+            // Clean up
+            free(thread_ids);
+            free(cpu_blocks);
+            free(gpu_blocks);
         }
     }
     
@@ -523,25 +696,51 @@ int main(int argc, char **argv) {
     printf("==========================================\n");
     
     time_t start_time = time(NULL);
-    uint32_t found_key = 0;
     
     // If we're testing a narrow range, just process those blocks
     if (start_block == end_block) {
-        printf("Testing single block 0x%02X directly\n", start_block);
-        if (gpu_available && use_gpu) {
-            // Try GPU first
-            printf("Trying GPU search for block 0x%02X...\n", start_block);
-            if (run_gpu_search(test_data, mi, start_block, &found_key) == 0) {
-                key_found = true;
+        printf("Testing single block 0x%02X in parallel with CPU and GPU\n", start_block);
+        
+        // Define variables for threads
+        pthread_t cpu_thread;
+        bool cpu_thread_started = false;
+        
+        // Create thread args for CPU
+        thread_args *cpu_args = (thread_args *)malloc(sizeof(thread_args));
+        if (cpu_args) {
+            cpu_args->test_data = test_data;
+            cpu_args->thread_id = 0;
+            cpu_args->start_key = 0;
+            cpu_args->end_key = 0xFFFFFF;
+            cpu_args->block_to_test = start_block;
+            cpu_args->keys_tested_local = 0;
+            cpu_args->mi = mi;
+            
+            // Start CPU thread
+            printf("Starting CPU search for block 0x%02X in parallel...\n", start_block);
+            if (pthread_create(&cpu_thread, NULL, brute_force_thread, cpu_args) != 0) {
+                fprintf(stderr, "Error: Could not create CPU thread\n");
+                free(cpu_args);
+            } else {
+                cpu_thread_started = true;
             }
         }
         
-        // Try CPU if GPU didn't find it or wasn't available
-        if (!key_found) {
-            printf("Trying CPU search for block 0x%02X...\n", start_block);
-            if (process_block_sequential(test_data, mi, start_block, &found_key) == 0) {
+        // Start GPU search in main thread if available
+        if (gpu_available && use_gpu) {
+            printf("Starting GPU search for block 0x%02X in parallel...\n", start_block);
+            if (run_gpu_search(test_data, mi, start_block, &found_key) == 0) {
+                // GPU found the key!
+                pthread_mutex_lock(&keys_mutex);
                 key_found = true;
+                printf("GPU found the key: 0x%08X\n", found_key);
+                pthread_mutex_unlock(&keys_mutex);
             }
+        }
+        
+        // Wait for CPU thread if it was started
+        if (cpu_thread_started) {
+            pthread_join(cpu_thread, NULL);
         }
     } else {
         // PHASE 1: Try known common blocks first sequentially
