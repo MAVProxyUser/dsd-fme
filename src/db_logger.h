@@ -2,6 +2,13 @@
 #define DB_LOGGER_H
 
 #include <stdint.h>
+#include <sqlite3.h>
+
+/* Initialize the database system with triggers for auto correlation */
+void db_init_with_triggers(void);
+
+/* Archive the current database and create a fresh one */
+void db_archive_and_create_new(void);
 
 /* Set the current Header (H-) MI value for subsequent AMBE logging */
 void db_set_header_mi(uint64_t mi, int slot, uint32_t algid);
@@ -38,6 +45,15 @@ void db_set_talkgroup(uint32_t talkgroup);
 
 /* Update encrypted flag when MI is detected */
 void db_update_encrypted_flag(void);
+
+/* Fix encrypted flags for all superframes in the database */
+void db_fix_encrypted_flags(void);
+
+/* Consolidate current database with master database */
+void db_consolidate_with_master(void);
+
+/* Register custom SQLite functions */
+void db_register_lfsr_functions(sqlite3 *db);
 
 /* Close the database connection (call on program exit) */
 void db_close(void);
