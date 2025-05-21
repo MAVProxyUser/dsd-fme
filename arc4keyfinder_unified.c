@@ -52,17 +52,8 @@ int num_threads = 0;              // Number of threads
 FILE *log_file = NULL;            // Log file
 
 // External CUDA functions (to be linked in at compile time)
-extern bool cuda_check_gpu_available();
-extern int cuda_run_gpu_search(unsigned char *test_data, char *mi, int block, uint32_t *found_key);
-
-// Wrapper functions to match our naming convention
-bool check_gpu_available() {
-    return cuda_check_gpu_available();
-}
-
-int run_gpu_search(unsigned char *test_data, char *mi, int block, uint32_t *found_key) {
-    return cuda_run_gpu_search(test_data, mi, block, found_key);
-}
+extern bool check_gpu_available();
+extern int run_gpu_search(unsigned char *test_data, char *mi, int block, uint32_t *found_key);
 
 // Known block patterns that are commonly used
 const int KNOWN_BLOCKS[] = {0x78, 0x32, 0xDD, 0xAA, 0xBB, 0xCC, 0x00, 0xFF};
