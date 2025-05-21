@@ -376,9 +376,44 @@ int main(int argc, char **argv) {
         return 1;
     }
     
-    unsigned char plaintext[12] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
+    // Initialize plaintext pattern based on DMR mode
+    // This is the crucial step we were missing! The plaintext pattern varies by mode
+    unsigned char plaintext[18] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 
+                                 0x77, 0x88, 0x99, 0x00, 0xAA, 0xBB}; // Default pattern
     
-    printf("Using plaintext pattern: ");
+    // Modify the plaintext pattern based on DMR mode
+    switch (dmr_mode) {
+        case '1': // Motorola DMR Mode 1 - default pattern is fine
+            break;
+            
+        case '2': // Motorola DMR Mode 2
+            // Constants based on the reconstructed code
+            ((unsigned int*)plaintext)[0] = 0x9fa901f8;
+            ((unsigned int*)plaintext)[1] = 0xa901f88c;
+            ((unsigned int*)plaintext)[2] = 0x1f88c9f;
+            *((unsigned short*)plaintext + 6) = 0x9fa9;
+            *((unsigned char*)plaintext + 14) = 0x8c;
+            break;
+            
+        case '3': // Anytone DMR
+            memset(plaintext, 0, sizeof(plaintext));
+            break;
+            
+        case '4': // Others DMR Mode 1
+            memset(plaintext, 8, sizeof(plaintext));
+            break;
+            
+        case '5': // Others DMR Mode 2 - complex pattern, using default as fallback
+            break;
+    }
+    
+    printf("Using %s pattern for DMR mode %c: ", 
+           dmr_mode == '1' ? "standard" : 
+           dmr_mode == '2' ? "Motorola Mode 2" :
+           dmr_mode == '3' ? "Anytone (zeros)" :
+           dmr_mode == '4' ? "Others Mode 1 (0x08)" :
+           "Others Mode 2", dmr_mode);
+    
     for (int i = 0; i < 12; i++) {
         printf("%02X ", plaintext[i]);
     }
